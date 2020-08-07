@@ -1,4 +1,4 @@
-# This file contains a wrapper class that represents word trained_embeddings
+# This file contains a wrapper class that represents word trained embeddings
 from gensim.models import KeyedVectors
 from mma_word_embeddings.utils import normalize, make_pairs
 import numpy as np
@@ -787,7 +787,7 @@ class WordEmbedding:
 
 
 class EmbeddingEnsemble:
-    """Applies actions to an list_of_embeddings of trained_embeddings."""
+    """Applies actions to an list_of_embeddings of trained embeddings."""
 
     def __init__(self, path_to_embeddings, path_training_data=None):
 
@@ -803,7 +803,7 @@ class EmbeddingEnsemble:
 
             if len(paths) == 0:
                 raise EmbeddingError("Failed to find any appropriate file. Please make sure that "
-                                     "there are trained_embeddings under this path.".format(path_to_embeddings))
+                                     "there are trained embeddings under this path.".format(path_to_embeddings))
 
         # Iterate through all paths
         for path in paths:
@@ -812,12 +812,12 @@ class EmbeddingEnsemble:
                 # load the word vectors of an embedding
                 emb = WordEmbedding(path)
             except FileNotFoundError:
-                raise EmbeddingError("Failed to load the trained_embeddings {}. Please make sure that "
+                raise EmbeddingError("Failed to load the trained embeddings {}. Please make sure that "
                                      "the path to this file really exists.".format(path))
 
             self.list_of_embeddings.append(emb)
 
-        self.description = "This object represents the list_of_embeddings {} of {} word trained_embeddings."\
+        self.description = "This object represents the list_of_embeddings {} of {} word trained embeddings."\
             .format(path_to_embeddings, len(self.list_of_embeddings))
 
         training_data = []
@@ -834,7 +834,7 @@ class EmbeddingEnsemble:
         # standard columns of data frame
         self.cols = ['emb' + str(i+1) for i in range(len(self.list_of_embeddings))]
 
-        print("Loaded {} trained_embeddings.".format(len(self.list_of_embeddings)))
+        print("Loaded {} trained embeddings.".format(len(self.list_of_embeddings)))
 
     def load_training_data(self, path_training_data):
         """Load training data into embedding after embedding was created."""
@@ -946,11 +946,11 @@ class EmbeddingEnsemble:
         return counter
 
     def n_embeddings(self):
-        """Return the number of trained_embeddings in the list_of_embeddings."""
+        """Return the number of embeddings in the list_of_embeddings."""
         return len(self.list_of_embeddings)
 
     def vocab_size(self):
-        """Return the size of the vocabulary in the trained_embeddings."""
+        """Return the size of the vocabulary in the embeddings."""
         individual = [emb.vocab_size() for emb in self.list_of_embeddings]
 
         data = [['size'] + individual]
@@ -960,7 +960,7 @@ class EmbeddingEnsemble:
         return df
 
     def shared_vocab(self):
-        """Return the subset of the vocab that is shared by all trained_embeddings in the list_of_embeddings
+        """Return the subset of the vocab that is shared by all embeddings in the list_of_embeddings
         (i.e. the intersection of their vocab)."""
         vocabs = [emb.vocab() for emb in self.list_of_embeddings]
         shared_vocab = set(vocabs[0]).intersection(*vocabs)
@@ -1137,7 +1137,7 @@ class EmbeddingEnsemble:
         for idx, emb in enumerate(self.list_of_embeddings[1:]):
             df = emb.projections(neutral_word, word_pairs)
             df = df.rename({"projection": "projection_emb" + str(idx+2)}, axis=1)
-            base_df = pd.merge(base_df, df, on=['neutral', 'dimension', 'example'])
+            base_df = pd.merge(base_df, df, on=["neutral", "dimension", "example"])
 
         base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
         base_df['STD'] = base_df.std(numeric_only=True, axis=1)
@@ -1170,7 +1170,7 @@ class EmbeddingEnsemble:
         for idx, emb in enumerate(self.list_of_embeddings[1:]):
             df = emb.projections(neutral_word, word_pairs)
             df = df.rename({"projection": "projection_emb" + str(idx + 2)}, axis=1)
-            base_df = pd.merge(base_df, df, on=['neutral', 'dimension', 'example'])
+            base_df = pd.merge(base_df, df, on=["neutral", "dimension", "example"])
 
         base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
         base_df['STD'] = base_df.std(numeric_only=True, axis=1)
@@ -1202,7 +1202,7 @@ class EmbeddingEnsemble:
         for idx, emb in enumerate(self.list_of_embeddings[1:]):
             df = emb.projections(neutral_word, word_pairs)
             df = df.rename({"projection": "projection_emb" + str(idx+2)}, axis=1)
-            base_df = pd.merge(base_df, df, on=['neutral', 'dimension', 'example'])
+            base_df = pd.merge(base_df, df, on=["neutral", "dimension", "example"])
 
         base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
         base_df['STD'] = base_df.std(numeric_only=True, axis=1)
