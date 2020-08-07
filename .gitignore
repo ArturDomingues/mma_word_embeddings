@@ -6,3 +6,6 @@
 !mma-word-embeddings/embedding.py
 !mma-word-embeddings/trainable_model.py
 !mma-word-embeddings/utils.py
+!mma-word-embeddings/__init__.py
+!README*
+!LICENSE*
