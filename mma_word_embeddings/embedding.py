@@ -1112,20 +1112,100 @@ class EmbeddingEnsemble:
         base_df['STD'] = base_df.std(numeric_only=True, axis=1)
         return base_df
 
-    def projection_to_centroid(self, neutral_word, list_of_word_pairs):
+    def projection_to_centroid_of_differences(self, neutral_word, word_pairs):
+        """For each embedding, compute the projection of a word to the centroid of the difference vectors spanned by the word pairs.
 
-        individual = [emb.projection_to_centroid(neutral_word, list_of_word_pairs) for emb in self.list_of_embeddings]
-        data = [['projection'] + individual]
-        df = pd.DataFrame(data, columns=[''] + self.cols)
-        df['MEAN'] = df.mean(numeric_only=True, axis=1)
-        df['STD'] = df.std(numeric_only=True, axis=1)
-        return df
+        Args:
+           neutral_word (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
+           word_pairs (List[List[str]]): list of word pairs
+               like
 
-    def projection_average(self, neutral_word, list_of_word_pairs):
+               [['word1','word2'], ['anotherword1','anotherword2'], ...],
 
-        individual = [emb.projection_average(neutral_word, list_of_word_pairs) for emb in self.list_of_embeddings]
-        data = [['projection'] + individual]
-        df = pd.DataFrame(data, columns=[''] + self.cols)
-        df['MEAN'] = df.mean(numeric_only=True, axis=1)
-        df['STD'] = df.std(numeric_only=True, axis=1)
-        return df
+               OR dictionary of word pairs like
+
+               {'gender': [['man', 'woman'], ['he', 'she'],...],
+                'race': [['black', 'white'], ,...],
+                ...
+                }
+
+        Returns:
+            DataFrame
+        """
+        base_df = self.list_of_embeddings[0].projection_to_centroid_of_differences(neutral_word, word_pairs)
+        base_df = base_df.rename({"projection": "projection_emb1"}, axis=1)
+        for idx, emb in enumerate(self.list_of_embeddings[1:]):
+            df = emb.projections(neutral_word, word_pairs)
+            df = df.rename({"projection": "projection_emb" + str(idx+2)}, axis=1)
+            base_df = pd.merge(base_df, df, on=['neutral', 'dimension', 'example'])
+
+        base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
+        base_df['STD'] = base_df.std(numeric_only=True, axis=1)
+
+        return base_df
+
+    def projection_to_difference_of_cluster_centroids(self, neutral_word, word_pairs):
+        """For each embedding, compute the projection of a word to the difference between the two centroids computed from the cluster of
+         words in each "pole".
+
+        Args:
+           neutral_word (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
+           word_pairs (List[List[str]]): list of word pairs
+               like
+
+               [['word1','word2'], ['anotherword1','anotherword2'], ...],
+
+               OR dictionary of word pairs like
+
+               {'gender': [['man', 'woman'], ['he', 'she'],...],
+                'race': [['black', 'white'], ,...],
+                ...
+                }
+
+        Returns:
+            DataFrame
+        """
+        base_df = self.list_of_embeddings[0].projection_to_difference_of_centroids(neutral_word, word_pairs)
+        base_df = base_df.rename({"projection": "projection_emb1"}, axis=1)
+        for idx, emb in enumerate(self.list_of_embeddings[1:]):
+            df = emb.projections(neutral_word, word_pairs)
+            df = df.rename({"projection": "projection_emb" + str(idx + 2)}, axis=1)
+            base_df = pd.merge(base_df, df, on=['neutral', 'dimension', 'example'])
+
+        base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
+        base_df['STD'] = base_df.std(numeric_only=True, axis=1)
+
+        return base_df
+
+    def projection_to_differences_averaged(self, neutral_word, word_pairs):
+        """For each embedding, compute the average of the projection of a word to the difference vectors spanned by the word pairs.
+
+        Args:
+            neutral_word (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
+            word_pairs (List[List[str]]): list of word pairs
+                like
+
+                [['word1','word2'], ['anotherword1','anotherword2'], ...],
+
+                OR dictionary of word pairs like
+
+                {'gender': [['man', 'woman'], ['he', 'she'],...],
+                 'race': [['black', 'white'], ,...],
+                 ...
+                 }
+
+        Returns:
+            DataFrame
+        """
+        base_df = self.list_of_embeddings[0].projection_to_differences_averaged(neutral_word, word_pairs)
+        base_df = base_df.rename({"projection": "projection_emb1"}, axis=1)
+        for idx, emb in enumerate(self.list_of_embeddings[1:]):
+            df = emb.projections(neutral_word, word_pairs)
+            df = df.rename({"projection": "projection_emb" + str(idx+2)}, axis=1)
+            base_df = pd.merge(base_df, df, on=['neutral', 'dimension', 'example'])
+
+        base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
+        base_df['STD'] = base_df.std(numeric_only=True, axis=1)
+
+        return base_df
+
