@@ -597,9 +597,9 @@ class WordEmbedding:
                 projection = self.projection(word, word_pair)
                 result.append([word, word_pair[0] + " - " + word_pair[1], projection])
 
-        result_dataframe = pd.DataFrame(result, columns=['Neutral word', 'Dimension', 'Projection'])
+        result_dataframe = pd.DataFrame(result, columns=['neutral', 'dimension', 'projection'])
         if self.training_data is not None:
-            result_dataframe['Neutral_freq'] = [self.frequency_in_training_data(word) for word in result_dataframe['Neutral word']]
+            result_dataframe['neutral_freq'] = [self.frequency_in_training_data(word) for word in result_dataframe['neutral']]
         return result_dataframe
 
     def plot_dimension_quality_baseline(self, n_pairs=5, n_trials=100):
@@ -1106,7 +1106,7 @@ class EmbeddingEnsemble:
         for idx, emb in enumerate(self.list_of_embeddings[1:]):
             df = emb.projections(neutral_words, word_pairs)
             df = df.rename({"Projection": "projection_emb" + str(idx+2)}, axis=1)
-            base_df = pd.merge(base_df, df, on=['Neutral word', 'Dimension'])
+            base_df = pd.merge(base_df, df, on=['neutral', 'dimension'])
 
         base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
         base_df['STD'] = base_df.std(numeric_only=True, axis=1)
@@ -1135,7 +1135,7 @@ class EmbeddingEnsemble:
         base_df = self.list_of_embeddings[0].projection_to_centroid_of_differences(neutral_word, word_pairs)
         base_df = base_df.rename({"projection": "projection_emb1"}, axis=1)
         for idx, emb in enumerate(self.list_of_embeddings[1:]):
-            df = emb.projections(neutral_word, word_pairs)
+            df = emb.projection_to_centroid_of_differences(neutral_word, word_pairs)
             df = df.rename({"projection": "projection_emb" + str(idx+2)}, axis=1)
             base_df = pd.merge(base_df, df, on=["neutral", "dimension", "example"])
 
@@ -1168,7 +1168,7 @@ class EmbeddingEnsemble:
         base_df = self.list_of_embeddings[0].projection_to_difference_of_cluster_centroids(neutral_word, word_pairs)
         base_df = base_df.rename({"projection": "projection_emb1"}, axis=1)
         for idx, emb in enumerate(self.list_of_embeddings[1:]):
-            df = emb.projections(neutral_word, word_pairs)
+            df = emb.projection_to_difference_of_cluster_centroids(neutral_word, word_pairs)
             df = df.rename({"projection": "projection_emb" + str(idx + 2)}, axis=1)
             base_df = pd.merge(base_df, df, on=["neutral", "dimension", "example"])
 
@@ -1200,7 +1200,7 @@ class EmbeddingEnsemble:
         base_df = self.list_of_embeddings[0].projection_to_differences_averaged(neutral_word, word_pairs)
         base_df = base_df.rename({"projection": "projection_emb1"}, axis=1)
         for idx, emb in enumerate(self.list_of_embeddings[1:]):
-            df = emb.projections(neutral_word, word_pairs)
+            df = emb.projection_to_differences_averaged(neutral_word, word_pairs)
             df = df.rename({"projection": "projection_emb" + str(idx+2)}, axis=1)
             base_df = pd.merge(base_df, df, on=["neutral", "dimension", "example"])
 
