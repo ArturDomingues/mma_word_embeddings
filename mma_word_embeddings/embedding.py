@@ -293,11 +293,20 @@ class WordEmbedding:
 
         return self._word_vectors.most_similar(word, topn=n)
 
+    def most_similar_by_vector(self, vector, n=10):
+        """Return the words most similar to 'vector'."""
+
+        return self._word_vectors.similar_by_vector(vector, topn=n)
+
     def least_similar(self, word, n=10):
         """Return the words least similar to 'word'."""
         most_sim = self._word_vectors.most_similar(word, topn=self.vocab_size())
         last_n = most_sim[-n:]
         return last_n[::-1]
+
+    def least_similar_by_vector(self, vector, n=10):
+        """Return the words least similar to 'word'."""
+        return self.most_similar_by_vector(-vector, n=n)
 
     def analogy(self, positive_list, negative_list, n=10):
         """Returns words close to positive words and far away from negative words, as
@@ -408,101 +417,18 @@ class WordEmbedding:
         projection = np.dot(diff, vec)
         return projection
 
-    def projection_to_centroid(self, neutral_word, list_of_word_pairs):
+    def projection_to_centroid_of_differences(self, neutral_word, word_pairs):
         """Compute the projection of a word to the centroid of the difference vectors spanned by the word pairs.
 
         Args:
-            word (str): neutral word
-            list_of_word_pairs (List[List[str]]): list of lists of two words defining
+            neutral_word (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
+            word_pairs (List[List[str]]): list of word pairs
+                like
 
-        Returns:
-            float
-        """
-        neutral_word = self.vector(neutral_word)
-        centroid = self.centroid_of_difference_vectors(list_of_word_pairs)
-        return np.dot(neutral_word, centroid)
+                [['word1','word2'], ['anotherword1','anotherword2'], ...],
 
-    def projection_to_principal_component(self, neutral_word, list_of_word_pairs):
-        """Compute the projection of a neutral word to the axis corresponding to the first principal
-        component of the vectors corresponding to all words in the list.
+                OR dictionary of word pairs like
 
-        Args:
-            word (str): neutral word
-            list_of_word_pairs (List[List[str]]): list of lists of two words defining
-
-        Returns:
-            float
-        """
-        neutral_word = self.vector(neutral_word)
-
-        left = []
-        right = []
-        for word_pair in list_of_word_pairs:
-            left.append(self.vector(word_pair[0]))
-            right.append(self.vector(word_pair[1]))
-
-        X_left = np.array(left)
-        pca_transformer = PCA(n_components=1)
-        pca_transformer.fit_transform(X_left)
-        principal_axis_left = pca_transformer.components_[0]
-
-        X_right = np.array(right)
-        pca_transformer = PCA(n_components=1)
-        pca_transformer.fit_transform(X_right)
-        principal_axis_right = pca_transformer.components_[0]
-
-        diff = principal_axis_left - principal_axis_right
-        diff = normalize(diff)
-        return np.dot(neutral_word, diff)
-
-    def projection_average(self, neutral_word, list_of_word_pairs):
-        """Compute the average of the projection of a word to the difference vectors spanned by the word pairs.
-
-        Args:
-            word (str): neutral word
-            list_of_word_pairs (List[List[str]]): list of lists of two words defining
-
-        Returns:
-            float
-        """
-        projections = [self.projection(neutral_word, word_pair) for word_pair in list_of_word_pairs]
-        return np.mean(projections)
-
-    def projection_to_centroids(self, neutral_word, dict_of_word_pairs):
-        """Compute the projection of a neutral word to the centroid of difference vectors spanned by different
-        categories of word pairs.
-
-        Args:
-            word (str): neutral word
-            dict_of_word_pairs (dict): has the form
-                {'gender': [['man', 'woman'], ['he', 'she'],...],
-                 'race': [['black', 'white'], ,...],
-                 ...
-                 }
-
-        Returns:
-            float
-        """
-        neutral_word = self.vector(neutral_word)
-
-        data = {}
-        for name, list_of_pairs in dict_of_word_pairs.items():
-            centroid = self.centroid_of_difference_vectors(list_of_pairs)
-            dimension = "{} ({}-{})".format(name, list_of_pairs[0][0], list_of_pairs[0][1])
-            data[dimension] = [np.dot(neutral_word, centroid)]
-
-        df = pd.DataFrame(data)
-        return df
-
-    def projection_to_principal_components(self, neutral_word, dict_of_word_pairs):
-        """Compute the projection of a neutral word to the axes corresponding to the first principal
-        component of the vectors corresponding to all words in the lists.
-
-        The first word pair will be used in the column title to indicate left and right.
-
-        Args:
-            word (str): neutral word
-            dict_of_word_pairs (dict): has the form
                 {'gender': [['man', 'woman'], ['he', 'she'],...],
                  'race': [['black', 'white'], ,...],
                  ...
@@ -511,39 +437,148 @@ class WordEmbedding:
         Returns:
             DataFrame
         """
+        if isinstance(neutral_word, str):
+            neutral_word = [neutral_word]
 
-        data = {}
-        for name, list_of_pairs in dict_of_word_pairs.items():
-            dimension = "{} ({}-{})".format(name, list_of_pairs[0][0], list_of_pairs[0][1])
-            data[dimension] = [self.projection_to_principal_component(neutral_word, list_of_pairs)]
+        if isinstance(word_pairs, list):
+            word_pairs = {'dim': word_pairs}
 
-        df = pd.DataFrame(data)
+        data = []
+        for neutral in neutral_word:
+
+            neutral_vec = self.vector(neutral)
+
+            for name, list_of_pairs in word_pairs.items():
+                centroid = self.centroid_of_difference_vectors(list_of_pairs)
+                dimension = "{}".format(name)
+                example = "{}-{}".format(list_of_pairs[0][0], list_of_pairs[0][1])
+                res = np.dot(neutral_vec, centroid)
+                data.append([neutral, dimension, example, res])
+
+        df = pd.DataFrame(data, columns=["neutral", "dimension", "example", "projection"])
         return df
 
-    def projection_averages(self, neutral_word, dict_of_word_pairs):
-        """Compute the average projections of a neutral word to difference vectors spanned by
-        different categories of word pairs.
+    def projection_to_difference_of_cluster_centroids(self, neutral_word, word_pairs):
+        """Compute the projection of a word to the difference between the two centroids computed from the cluster of
+         words in each "pole".
 
-        Args:
-            word (str): neutral word
-            dict_of_word_pairs (dict): has the form
+         Args:
+            neutral_word (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
+            word_pairs (List[List[str]]): list of word pairs
+                like
+
+                [['word1','word2'], ['anotherword1','anotherword2'], ...],
+
+                OR dictionary of word pairs like
+
                 {'gender': [['man', 'woman'], ['he', 'she'],...],
                  'race': [['black', 'white'], ,...],
                  ...
                  }
 
         Returns:
-            float
+            DataFrame
         """
+        if isinstance(neutral_word, str):
+            neutral_word = [neutral_word]
 
-        data = {}
-        for name, list_of_pairs in dict_of_word_pairs.items():
-            p = [self.projection(neutral_word, word_pair) for word_pair in list_of_pairs]
-            dimension = "{} ({}-{})".format(name, list_of_pairs[0][0], list_of_pairs[0][1])
-            data[dimension] = [np.mean(p)]
+        if isinstance(word_pairs, list):
+            word_pairs = {'dim': word_pairs}
 
-        df = pd.DataFrame(data)
+        data = []
+        for neutral in neutral_word:
+
+            neutral_vec = self.vector(neutral)
+
+            for name, list_of_pairs in word_pairs.items():
+                left_cluster = [pair[0] for pair in list_of_pairs]
+                right_cluster = [pair[1] for pair in list_of_pairs]
+                centroid_left_cluster = self.centroid_of_vectors(left_cluster)
+                centroid_right_cluster = self.centroid_of_vectors(right_cluster)
+                diff = centroid_left_cluster - centroid_right_cluster
+                diff = normalize(diff)
+                res = np.dot(neutral_vec, diff)
+
+                dimension = "{}".format(name)
+                example = "{}-{}".format(list_of_pairs[0][0], list_of_pairs[0][1])
+                data.append([neutral, dimension, example, res])
+
+        df = pd.DataFrame(data, columns=["neutral", "dimension", "example", "projection"])
         return df
+
+    def projection_to_differences_averaged(self, neutral_word, word_pairs):
+        """Compute the average of the projection of a word to the difference vectors spanned by the word pairs.
+
+        Args:
+            neutral_word (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
+            word_pairs (List[List[str]]): list of word pairs
+                like
+
+                [['word1','word2'], ['anotherword1','anotherword2'], ...],
+
+                OR dictionary of word pairs like
+
+                {'gender': [['man', 'woman'], ['he', 'she'],...],
+                 'race': [['black', 'white'], ,...],
+                 ...
+                 }
+
+        Returns:
+            DataFrame
+        """
+        if isinstance(neutral_word, str):
+            neutral_word = [neutral_word]
+
+        if isinstance(word_pairs, list):
+            word_pairs = {'dim': word_pairs}
+
+        data = []
+        for neutral in neutral_word:
+
+            for name, list_of_pairs in word_pairs.items():
+                projections = [self.projection(neutral, word_pair) for word_pair in list_of_pairs]
+                dimension = "{}".format(name)
+                example = "{}-{}".format(list_of_pairs[0][0], list_of_pairs[0][1])
+                res = np.mean(projections)
+                data.append([neutral, dimension, example, res])
+
+        df = pd.DataFrame(data, columns=["neutral", "dimension", "example", "projection"])
+        return df
+
+    #
+    # def projection_to_principal_component(self, neutral_word, list_of_word_pairs):
+    #     """Compute the projection of a neutral word to the axis corresponding to the first principal
+    #     component of the vectors corresponding to all words in the list.
+    #
+    #     Args:
+    #         neutral_word (str): neutral word
+    #         list_of_word_pairs (List[List[str]]): list of lists of two words, like [['word1','word2'],
+    #         ['anotherword1','anotherword2'], ...]
+    #
+    #     Returns:
+    #         float
+    #     """
+    #     neutral_word = self.vector(neutral_word)
+    #
+    #     left = []
+    #     right = []
+    #     for word_pair in list_of_word_pairs:
+    #         left.append(self.vector(word_pair[0]))
+    #         right.append(self.vector(word_pair[1]))
+    #
+    #     X_left = np.array(left)
+    #     pca_transformer = PCA(n_components=1)
+    #     pca_transformer.fit_transform(X_left)
+    #     principal_axis_left = pca_transformer.components_[0]
+    #
+    #     X_right = np.array(right)
+    #     pca_transformer = PCA(n_components=1)
+    #     pca_transformer.fit_transform(X_right)
+    #     principal_axis_right = pca_transformer.components_[0]
+    #
+    #     diff = principal_axis_left - principal_axis_right
+    #     diff = normalize(diff)
+    #     return np.dot(neutral_word, diff)
 
     def projections(self, neutral_words, word_pairs):
         """Compute projections of a word to difference vectors ("dimensions") spanned by multiple
