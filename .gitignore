@@ -3,3 +3,5 @@
 # pycharm metadata
 .idea 
 
+# cache
+mma_word_embeddings/__pycache__*
