@@ -1165,7 +1165,7 @@ class EmbeddingEnsemble:
         Returns:
             DataFrame
         """
-        base_df = self.list_of_embeddings[0].projection_to_difference_of_centroids(neutral_word, word_pairs)
+        base_df = self.list_of_embeddings[0].projection_to_difference_of_cluster_centroids(neutral_word, word_pairs)
         base_df = base_df.rename({"projection": "projection_emb1"}, axis=1)
         for idx, emb in enumerate(self.list_of_embeddings[1:]):
             df = emb.projections(neutral_word, word_pairs)
