@@ -1,6 +1,6 @@
 # This file contains a wrapper class that represents word trained_embeddings
 from gensim.models import KeyedVectors
-from mma_word_embeddings.utils import normalize, make_pairs
+from utils import normalize, make_pairs
 import numpy as np
 from itertools import combinations_with_replacement
 import pandas as pd
@@ -37,7 +37,7 @@ class WordEmbedding:
             # load the word vectors of an embedding
             self._word_vectors = KeyedVectors.load(path_to_embedding)
         except:
-            raise EmbeddingError("Failed to load the embedding.")
+            raise EmbeddingError("Failed to load the embedding. In 99.999% of all cases this means your path is wrong. Good luck.")
 
         self.description = "This object represents the {} word embedding.".format(path_to_embedding)
         self.path_to_embedding = path_to_embedding.replace("/content/drive/My Drive/", "")
@@ -141,7 +141,7 @@ class WordEmbedding:
         res = pd.DataFrame(data, columns=['Word', 'Frequency'])
         res = res.sort_values(by='Frequency', axis=0, ascending=False)
         res = res.reset_index(drop=True)
-        return res.style.background_gradient(cmap=COLORMAP)
+        return res
 
     def vocab_sorted_by_frequency_in_training_data(self, n_grams=None, first_n=None, more_frequent_than=None):
         """Return the vocab sorted by the frequency with which they appear in the training data.
