@@ -417,132 +417,217 @@ class WordEmbedding:
         projection = np.dot(diff, vec)
         return projection
 
-    def projection_to_centroid_of_differences(self, neutral_word, word_pairs):
-        """Compute the projection of a word to the centroid of the difference vectors spanned by the word pairs.
+    def projection_to_centroid_of_differences(self, neutral, generating_words):
+        """Compute the projection of a word to the centroid of the difference vectors spanned by the word pairs
+           generated from generating_words.
 
         Args:
-            neutral_word (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
-            word_pairs (List[List[str]]): list of word pairs
-                like
+            neutral (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
+            generating_words (list[list[str]] or dict): list of word pairs like
 
-                [['word1','word2'], ['anotherword1','anotherword2'], ...],
+                    [['word1','word2'], ['anotherword1','anotherword2'], ...],
 
                 OR dictionary of word pairs like
 
-                {'gender': [['man', 'woman'], ['he', 'she'],...],
-                 'race': [['black', 'white'], ,...],
-                 ...
-                 }
+                    {'gender': [['man', 'woman'], ['he', 'she'],...],
+                     'race': [['black', 'white'], ,...],
+                     ...
+                     }
+                OR list of clusters like
+
+                    [['c1_word1', 'c1_word2',...], ['c2_word1', 'c2_word2',...]]
 
         Returns:
             DataFrame
         """
-        if isinstance(neutral_word, str):
-            neutral_word = [neutral_word]
+        if isinstance(neutral, str):
+            neutral_words = [neutral]
+        else:
+            neutral_words = neutral
 
-        if isinstance(word_pairs, list):
-            word_pairs = {'dim': word_pairs}
+        if isinstance(generating_words, list):
+            generating_words = {'dim': generating_words}
+
+        dimensions = {}
+        for dim, gen_words in generating_words.items():
+            if all(len(ls) == 2 for ls in gen_words):
+                pairs = gen_words
+            elif len(gen_words) == 2:
+                pairs = make_pairs(gen_words[0], gen_words[1], exclude_doubles=True)
+            else:
+                raise ValueError("Cannot interpret generating_words list as list of word pairs, nor"
+                                 "as a list of two clusters. Please check that your input is correct.")
+            dimensions[dim] = pairs
 
         data = []
-        for neutral in neutral_word:
+        for neutral_word in neutral_words:
 
-            neutral_vec = self.vector(neutral)
+            neutral_vec = self.vector(neutral_word)
 
-            for name, list_of_pairs in word_pairs.items():
-                centroid = self.centroid_of_difference_vectors(list_of_pairs)
-                dimension = "{}".format(name)
-                example = "{}-{}".format(list_of_pairs[0][0], list_of_pairs[0][1])
+            for name, word_pairs in dimensions.items():
+                centroid = self.centroid_of_difference_vectors(word_pairs)
+                dim = "{}".format(name)
+                example = "{}-{}".format(word_pairs[0][0], word_pairs[0][1])
                 res = np.dot(neutral_vec, centroid)
-                data.append([neutral, dimension, example, res])
+                data.append([neutral_word, dim, example, res])
 
         df = pd.DataFrame(data, columns=["neutral", "dimension", "example", "projection"])
         return df
 
-    def projection_to_difference_of_cluster_centroids(self, neutral_word, word_pairs):
-        """Compute the projection of a word to the difference between the two centroids computed from the cluster of
-         words in each "pole".
+    def projection_to_difference_of_cluster_centroids(self, neutral, generating_words):
+        """Compute the projection of a word to the difference between the two centroids computed from the clusters
+           inferred from generating_words.
 
          Args:
-            neutral_word (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
-            word_pairs (List[List[str]]): list of word pairs
-                like
+            neutral (str or list[str]): neutral word like 'land' OR list of neutral
+              words like ['land', 'nurse',...]
 
-                [['word1','word2'], ['anotherword1','anotherword2'], ...],
+            generating_words (list[list[str]] or dict): list of word pairs like
+
+                    [['word1','word2'], ['anotherword1','anotherword2'], ...],
 
                 OR dictionary of word pairs like
 
-                {'gender': [['man', 'woman'], ['he', 'she'],...],
-                 'race': [['black', 'white'], ,...],
-                 ...
-                 }
+                    {'gender': [['man', 'woman'], ['he', 'she'],...],
+                     'race': [['black', 'white'], ,...],
+                     ...
+                     }
+                OR list of clusters like
+
+                    [['c1_word1', 'c1_word2',...], ['c2_word1', 'c2_word2',...]]
 
         Returns:
             DataFrame
         """
-        if isinstance(neutral_word, str):
-            neutral_word = [neutral_word]
+        if isinstance(neutral, str):
+            neutral_words = [neutral]
+        else:
+            neutral_words = neutral
 
-        if isinstance(word_pairs, list):
-            word_pairs = {'dim': word_pairs}
+        if isinstance(generating_words, list):
+            generating_words = {'dim': generating_words}
+
+        dimensions = {}
+        for dim, gen_words in generating_words.items():
+            if isinstance(gen_words, list):
+                if all(len(ls) == 2 for ls in gen_words):
+                    clusters = [list(set([pair[0] for pair in gen_words])),
+                                list(set([pair[1] for pair in gen_words]))]
+                elif len(gen_words) == 2:
+                    clusters = gen_words
+                else:
+                    raise ValueError("Cannot interpret generating_words list as list of word pairs, nor"
+                                     "as a list of two clusters. Please check that your input is correct.")
+            dimensions[dim] = clusters
 
         data = []
-        for neutral in neutral_word:
+        for neutral_word in neutral_words:
 
-            neutral_vec = self.vector(neutral)
+            neutral_vec = self.vector(neutral_word)
 
-            for name, list_of_pairs in word_pairs.items():
-                left_cluster = [pair[0] for pair in list_of_pairs]
-                right_cluster = [pair[1] for pair in list_of_pairs]
-                centroid_left_cluster = self.centroid_of_vectors(left_cluster)
-                centroid_right_cluster = self.centroid_of_vectors(right_cluster)
+            for name, clusters in dimensions.items():
+                centroid_left_cluster = self.centroid_of_vectors(clusters[0])
+                centroid_right_cluster = self.centroid_of_vectors(clusters[1])
                 diff = centroid_left_cluster - centroid_right_cluster
                 diff = normalize(diff)
                 res = np.dot(neutral_vec, diff)
 
-                dimension = "{}".format(name)
-                example = "{}-{}".format(list_of_pairs[0][0], list_of_pairs[0][1])
-                data.append([neutral, dimension, example, res])
+                dim = "{}".format(name)
+                example = "{}-{}".format(clusters[0][0], clusters[1][0])
+                data.append([neutral_word, dim, example, res])
 
         df = pd.DataFrame(data, columns=["neutral", "dimension", "example", "projection"])
         return df
 
-    def projection_to_differences_averaged(self, neutral_word, word_pairs):
-        """Compute the average of the projection of a word to the difference vectors spanned by the word pairs.
+    def projection_to_differences_averaged(self, neutral, generating_words):
+        """Compute the average of the projection of a word to the difference vectors spanned by the word pairs
+           generated from generating_words.
 
         Args:
-            neutral_word (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
-            word_pairs (List[List[str]]): list of word pairs
-                like
+            neutral (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
+            generating_words (list[list[str]] or dict): list of word pairs like
 
-                [['word1','word2'], ['anotherword1','anotherword2'], ...],
+                    [['word1','word2'], ['anotherword1','anotherword2'], ...],
 
                 OR dictionary of word pairs like
 
-                {'gender': [['man', 'woman'], ['he', 'she'],...],
-                 'race': [['black', 'white'], ,...],
-                 ...
-                 }
+                    {'gender': [['man', 'woman'], ['he', 'she'],...],
+                     'race': [['black', 'white'], ,...],
+                     ...
+                     }
+                OR list of clusters like
+
+                    [['c1_word1', 'c1_word2',...], ['c2_word1', 'c2_word2',...]]
 
         Returns:
             DataFrame
         """
-        if isinstance(neutral_word, str):
-            neutral_word = [neutral_word]
+        if isinstance(neutral, str):
+            neutral_words = [neutral]
+        else:
+            neutral_words = neutral
 
-        if isinstance(word_pairs, list):
-            word_pairs = {'dim': word_pairs}
+        if isinstance(generating_words, list):
+            generating_words = {'dim': generating_words}
+
+        dimensions = {}
+        for dim, gen_words in generating_words.items():
+            if all(len(ls) == 2 for ls in gen_words):
+                pairs = gen_words
+            elif len(gen_words) == 2:
+                pairs = make_pairs(gen_words[0], gen_words[1], exclude_doubles=True)
+            else:
+                raise ValueError("Cannot interpret generating_words list as list of word pairs, nor"
+                                 "as a list of two clusters. Please check that your input is correct.")
+            dimensions[dim] = pairs
 
         data = []
-        for neutral in neutral_word:
+        for neutral_word in neutral_words:
 
-            for name, list_of_pairs in word_pairs.items():
-                projections = [self.projection(neutral, word_pair) for word_pair in list_of_pairs]
-                dimension = "{}".format(name)
-                example = "{}-{}".format(list_of_pairs[0][0], list_of_pairs[0][1])
+            for name, word_pairs in dimensions.items():
+                projections = [self.projection(neutral_word, word_pair) for word_pair in word_pairs]
+                dim = "{}".format(name)
+                example = "{}-{}".format(word_pairs[0][0], word_pairs[0][1])
                 res = np.mean(projections)
-                data.append([neutral, dimension, example, res])
+                data.append([neutral_word, dim, example, res])
 
         df = pd.DataFrame(data, columns=["neutral", "dimension", "example", "projection"])
+        return df
+
+    def compare_three_projections(self, neutral, generating_words):
+        """
+        Merges the results of all three "projection onto dimension" methods.
+
+                Args:
+            neutral (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
+            generating_words (list[list[str]] or dict): list of word pairs like
+
+                    [['word1','word2'], ['anotherword1','anotherword2'], ...],
+
+                OR dictionary of word pairs like
+
+                    {'gender': [['man', 'woman'], ['he', 'she'],...],
+                     'race': [['black', 'white'], ,...],
+                     ...
+                     }
+                OR list of clusters like
+
+                    [['c1_word1', 'c1_word2',...], ['c2_word1', 'c2_word2',...]]
+
+        Returns:
+            DataFrame
+        """
+        df = self.projection_to_differences_averaged(neutral, generating_words)
+        df2 = self.projection_to_centroid_of_differences(neutral, generating_words)
+        df3 = self.projection_to_difference_of_cluster_centroids(neutral, generating_words)
+
+        df = df.rename({"projection": "projection_to_differences_averaged"}, axis=1)
+        df2 = df2.rename({"projection": "projection_to_centroid_of_differences"}, axis=1)
+        df3 = df3.rename({"projection": "projection_to_difference_of_cluster_centroids"}, axis=1)
+
+        df = pd.merge(df, df2, on=["neutral", "dimension", "example"])
+        df3 = df3.drop(columns=['example'])
+        df = pd.merge(df, df3, on=["neutral", "dimension"])
         return df
 
     #
