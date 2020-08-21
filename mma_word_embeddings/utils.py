@@ -33,13 +33,13 @@ def cell_colour(s, columns=None):
             cmap = COLORMAP
             norm = mcolors.DivergingNorm(vmin=-1, vcenter=0, vmax=1)
             return ['background-color: {:s}'.format(mcolors.to_hex(c.flatten())) for c in cmap(norm(s.values))]
-        else:
-            if all(isinstance(v, float) for v in s.values):
-                cmap = COLORMAP
-                norm = mcolors.DivergingNorm(vmin=-1, vcenter=0, vmax=1)
-                return ['background-color: {:s}'.format(mcolors.to_hex(c.flatten())) for c in cmap(norm(s.values))]
     else:
-        return [''] * len(s)
+        if all(isinstance(v, float) for v in s.values):
+            cmap = COLORMAP
+            norm = mcolors.DivergingNorm(vmin=-1, vcenter=0, vmax=1)
+            return ['background-color: {:s}'.format(mcolors.to_hex(c.flatten())) for c in cmap(norm(s.values))]
+        else:
+            return [''] * len(s)
 
 
 def remove_if_not_in_vocab(vocab, list_of_words):
