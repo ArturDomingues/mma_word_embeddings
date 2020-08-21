@@ -723,10 +723,10 @@ class WordEmbedding:
         df3 = self.average_projection_to_differences(neutral, generating_words)
         df4 = self.difference_of_averages_of_projections(neutral, generating_words)
 
-        df = df.rename({"projection": "projection_to_centroid_of_differences"}, axis=1)
-        df2 = df2.rename({"projection": "projection_to_difference_of_cluster_centroids"}, axis=1)
-        df3 = df3.rename({"projection": "average_projection_to_differences"}, axis=1)
-        df4 = df4.rename({"projection": "difference_of_averages_of_projections"}, axis=1)
+        df = df.rename({"projection": "proj_to_centroid_of_differences"}, axis=1)
+        df2 = df2.rename({"projection": "proj_to_difference_of_cluster_centroids"}, axis=1)
+        df3 = df3.rename({"projection": "average_proj_to_differences"}, axis=1)
+        df4 = df4.rename({"projection": "difference_of_averages_of_projs"}, axis=1)
 
         df = pd.merge(df, df2, on=["neutral", "dimension"])
         df = pd.merge(df, df3, on=["neutral", "dimension"])
