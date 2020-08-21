@@ -455,7 +455,7 @@ class WordEmbedding:
             elif len(gen_words) == 2:
                 pairs = make_pairs(gen_words[0], gen_words[1], exclude_doubles=True)
             else:
-                raise ValueError("Cannot interpret generating_words list as list of word pairs, nor"
+                raise ValueError("Cannot interpret generating_words list as list of word pairs, nor "
                                  "as a list of two clusters. Please check that your input is correct.")
             dimensions[dim] = pairs
 
@@ -516,7 +516,7 @@ class WordEmbedding:
                 elif len(gen_words) == 2:
                     clusters = gen_words
                 else:
-                    raise ValueError("Cannot interpret generating_words list as list of word pairs, nor"
+                    raise ValueError("Cannot interpret generating_words list as list of word pairs, nor "
                                      "as a list of two clusters. Please check that your input is correct.")
             dimensions[dim] = clusters
 
@@ -577,7 +577,7 @@ class WordEmbedding:
             elif len(gen_words) == 2:
                 pairs = make_pairs(gen_words[0], gen_words[1], exclude_doubles=True)
             else:
-                raise ValueError("Cannot interpret generating_words list as list of word pairs, nor"
+                raise ValueError("Cannot interpret generating_words list as list of word pairs, nor "
                                  "as a list of two clusters. Please check that your input is correct.")
             dimensions[dim] = pairs
 
