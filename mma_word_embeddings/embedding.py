@@ -696,6 +696,8 @@ class WordEmbedding:
         df = pd.merge(df, df4, on=["neutral", "dimension"])
 
         df = df.sort_values(["proj_to_centroid_of_differences"], axis=0)
+        df['MEAN'] = df.mean(numeric_only=True, axis=1)
+        df['STD'] = df.std(numeric_only=True, axis=1)
         return df
 
     #
