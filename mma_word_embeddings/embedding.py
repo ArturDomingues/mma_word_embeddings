@@ -21,6 +21,56 @@ pd.options.display.float_format = '{:,.4f}'.format
 COLORMAP = mcolors.LinearSegmentedColormap.from_list("MyCmapName",["r", "w", "g"])
 
 
+def _make_pairs(neutral, generating_words):
+
+    if isinstance(neutral, str):
+        neutral_words = [neutral]
+    else:
+        neutral_words = neutral
+
+    if isinstance(generating_words, list):
+        generating_words = {'dim': generating_words}
+
+    dimensions = {}
+    for dim, gen_words in generating_words.items():
+        if all(len(ls) == 2 for ls in gen_words):
+            pairs = gen_words
+        elif len(gen_words) == 2:
+            pairs = make_pairs(gen_words[0], gen_words[1], exclude_doubles=True)
+        else:
+            raise ValueError("Cannot interpret generating_words list as list of word pairs, nor "
+                             "as a list of two clusters. Please check that your input is correct.")
+        dimensions[dim] = pairs
+
+    return neutral_words, dimensions
+
+
+def _make_clusters(neutral, generating_words):
+
+    if isinstance(neutral, str):
+        neutral_words = [neutral]
+    else:
+        neutral_words = neutral
+
+    if isinstance(generating_words, list):
+        generating_words = {'dim': generating_words}
+
+    dimensions = {}
+    for dim, gen_words in generating_words.items():
+        if isinstance(gen_words, list):
+            if all(len(ls) == 2 for ls in gen_words):
+                clusters = [list(set([pair[0] for pair in gen_words])),
+                            list(set([pair[1] for pair in gen_words]))]
+            elif len(gen_words) == 2:
+                clusters = gen_words
+            else:
+                raise ValueError("Cannot interpret generating_words list as list of word pairs, nor "
+                                 "as a list of two clusters. Please check that your input is correct.")
+        dimensions[dim] = clusters
+
+    return neutral_words, dimensions
+
+
 class EmbeddingError(Exception):
     """Exception raised by a Model object when something is wrong.
     """
@@ -286,6 +336,7 @@ class WordEmbedding:
 
         # turn into dataframe
         result_dataframe = pd.DataFrame(result, columns=['Word1', 'Word2', 'Similarity'])
+        result_dataframe = result_dataframe.sort_values(["Similarity"], axis=0)
         return result_dataframe
 
     def most_similar(self, word, n=10):
@@ -417,6 +468,28 @@ class WordEmbedding:
         projection = np.dot(diff, vec)
         return projection
 
+    def projections(self, neutral_words, word_pairs):
+        """Compute projections of a word to difference vectors ("dimensions") spanned by multiple
+        word pairs. Return result as a dataframe.
+
+        Args:
+            word (str): neutral word
+            list_of_word_pairs (List[List[str]]): list of word pairs defining the dimension
+
+        Returns:
+            DataFrame
+        """
+        result = []
+        for word in neutral_words:
+            for word_pair in word_pairs:
+                projection = self.projection(word, word_pair)
+                result.append([word, word_pair[0] + " - " + word_pair[1], projection])
+
+        result_dataframe = pd.DataFrame(result, columns=['neutral', 'dimension', 'projection'])
+        if self.training_data is not None:
+            result_dataframe['neutral_freq'] = [self.frequency_in_training_data(word) for word in result_dataframe['neutral']]
+        return result_dataframe
+
     def projection_to_centroid_of_differences(self, neutral, generating_words):
         """Compute the projection of a word to the centroid of the difference vectors spanned by the word pairs
            generated from generating_words.
@@ -440,24 +513,7 @@ class WordEmbedding:
         Returns:
             DataFrame
         """
-        if isinstance(neutral, str):
-            neutral_words = [neutral]
-        else:
-            neutral_words = neutral
-
-        if isinstance(generating_words, list):
-            generating_words = {'dim': generating_words}
-
-        dimensions = {}
-        for dim, gen_words in generating_words.items():
-            if all(len(ls) == 2 for ls in gen_words):
-                pairs = gen_words
-            elif len(gen_words) == 2:
-                pairs = make_pairs(gen_words[0], gen_words[1], exclude_doubles=True)
-            else:
-                raise ValueError("Cannot interpret generating_words list as list of word pairs, nor "
-                                 "as a list of two clusters. Please check that your input is correct.")
-            dimensions[dim] = pairs
+        neutral_words, dimensions = _make_pairs(neutral, generating_words)
 
         data = []
         for neutral_word in neutral_words:
@@ -467,11 +523,11 @@ class WordEmbedding:
             for name, word_pairs in dimensions.items():
                 centroid = self.centroid_of_difference_vectors(word_pairs)
                 dim = "{}".format(name)
-                example = "{}-{}".format(word_pairs[0][0], word_pairs[0][1])
                 res = np.dot(neutral_vec, centroid)
-                data.append([neutral_word, dim, example, res])
+                data.append([neutral_word, dim, res])
 
-        df = pd.DataFrame(data, columns=["neutral", "dimension", "example", "projection"])
+        df = pd.DataFrame(data, columns=["neutral", "dimension", "projection"])
+        df = df.sort_values(["projection"], axis=0)
         return df
 
     def projection_to_difference_of_cluster_centroids(self, neutral, generating_words):
@@ -499,26 +555,7 @@ class WordEmbedding:
         Returns:
             DataFrame
         """
-        if isinstance(neutral, str):
-            neutral_words = [neutral]
-        else:
-            neutral_words = neutral
-
-        if isinstance(generating_words, list):
-            generating_words = {'dim': generating_words}
-
-        dimensions = {}
-        for dim, gen_words in generating_words.items():
-            if isinstance(gen_words, list):
-                if all(len(ls) == 2 for ls in gen_words):
-                    clusters = [list(set([pair[0] for pair in gen_words])),
-                                list(set([pair[1] for pair in gen_words]))]
-                elif len(gen_words) == 2:
-                    clusters = gen_words
-                else:
-                    raise ValueError("Cannot interpret generating_words list as list of word pairs, nor "
-                                     "as a list of two clusters. Please check that your input is correct.")
-            dimensions[dim] = clusters
+        neutral_words, dimensions = _make_clusters(neutral, generating_words)
 
         data = []
         for neutral_word in neutral_words:
@@ -531,15 +568,14 @@ class WordEmbedding:
                 diff = centroid_left_cluster - centroid_right_cluster
                 diff = normalize(diff)
                 res = np.dot(neutral_vec, diff)
-
                 dim = "{}".format(name)
-                example = "{}-{}".format(clusters[0][0], clusters[1][0])
-                data.append([neutral_word, dim, example, res])
+                data.append([neutral_word, dim, res])
 
-        df = pd.DataFrame(data, columns=["neutral", "dimension", "example", "projection"])
+        df = pd.DataFrame(data, columns=["neutral", "dimension", "projection"])
+        df = df.sort_values(["projection"], axis=0)
         return df
 
-    def projection_to_differences_averaged(self, neutral, generating_words):
+    def average_projection_to_differences(self, neutral, generating_words):
         """Compute the average of the projection of a word to the difference vectors spanned by the word pairs
            generated from generating_words.
 
@@ -562,24 +598,8 @@ class WordEmbedding:
         Returns:
             DataFrame
         """
-        if isinstance(neutral, str):
-            neutral_words = [neutral]
-        else:
-            neutral_words = neutral
 
-        if isinstance(generating_words, list):
-            generating_words = {'dim': generating_words}
-
-        dimensions = {}
-        for dim, gen_words in generating_words.items():
-            if all(len(ls) == 2 for ls in gen_words):
-                pairs = gen_words
-            elif len(gen_words) == 2:
-                pairs = make_pairs(gen_words[0], gen_words[1], exclude_doubles=True)
-            else:
-                raise ValueError("Cannot interpret generating_words list as list of word pairs, nor "
-                                 "as a list of two clusters. Please check that your input is correct.")
-            dimensions[dim] = pairs
+        neutral_words, dimensions = _make_pairs(neutral, generating_words)
 
         data = []
         for neutral_word in neutral_words:
@@ -587,16 +607,60 @@ class WordEmbedding:
             for name, word_pairs in dimensions.items():
                 projections = [self.projection(neutral_word, word_pair) for word_pair in word_pairs]
                 dim = "{}".format(name)
-                example = "{}-{}".format(word_pairs[0][0], word_pairs[0][1])
                 res = np.mean(projections)
-                data.append([neutral_word, dim, example, res])
+                data.append([neutral_word, dim, res])
 
-        df = pd.DataFrame(data, columns=["neutral", "dimension", "example", "projection"])
+        df = pd.DataFrame(data, columns=["neutral", "dimension", "projection"])
+        df = df.sort_values(["projection"], axis=0)
         return df
 
-    def compare_three_projections(self, neutral, generating_words):
+    # For backwards compatibility
+    def projection_to_differences_averaged(self, neutral, generating_words):
+        return self.average_projection_to_differences(neutral, generating_words)
+
+    def difference_of_averages_of_projections(self, neutral, generating_words):
+        """Compute the difference vector of the average of the projection of a neutral word to words in
+           the two clusters in generating_words.
+
+        Args:
+            neutral (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
+            generating_words (list[list[str]] or dict): list of word pairs like
+
+                    [['word1','word2'], ['anotherword1','anotherword2'], ...],
+
+                OR dictionary of word pairs like
+
+                    {'gender': [['man', 'woman'], ['he', 'she'],...],
+                     'race': [['black', 'white'], ,...],
+                     ...
+                     }
+                OR list of clusters like
+
+                    [['c1_word1', 'c1_word2',...], ['c2_word1', 'c2_word2',...]]
+
+        Returns:
+            DataFrame
         """
-        Merges the results of all three "projection onto dimension" methods.
+        neutral_words, dimensions = _make_clusters(neutral, generating_words)
+
+        data = []
+        for neutral_word in neutral_words:
+
+            for name, clusters in dimensions.items():
+
+                left = [self.similarity(neutral_word, word) for word in clusters[0]]
+                right = [self.similarity(neutral_word, word) for word in clusters[1]]
+                res = np.mean(left) - np.mean(right)
+                dim = "{}".format(name)
+                data.append([neutral_word, dim, res])
+
+        df = pd.DataFrame(data, columns=["neutral", "dimension", "projection"])
+        df = df.sort_values(["projection"], axis=0)
+        return df
+
+    def compare_projections(self, neutral, generating_words):
+        """
+        Merges the results of all "projection onto dimension" methods.
 
                 Args:
             neutral (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
@@ -617,17 +681,21 @@ class WordEmbedding:
         Returns:
             DataFrame
         """
-        df = self.projection_to_differences_averaged(neutral, generating_words)
+        df = self.average_projection_to_differences(neutral, generating_words)
         df2 = self.projection_to_centroid_of_differences(neutral, generating_words)
         df3 = self.projection_to_difference_of_cluster_centroids(neutral, generating_words)
+        df4 = self.difference_of_averages_of_projections(neutral, generating_words)
 
-        df = df.rename({"projection": "projection_to_differences_averaged"}, axis=1)
-        df2 = df2.rename({"projection": "projection_to_centroid_of_differences"}, axis=1)
-        df3 = df3.rename({"projection": "projection_to_difference_of_cluster_centroids"}, axis=1)
+        df = df.rename({"projection": "proj_to_centroid_of_differences"}, axis=1)
+        df2 = df2.rename({"projection": "proj_to_difference_of_cluster_centroids"}, axis=1)
+        df3 = df3.rename({"projection": "proj_to_differences_averaged"}, axis=1)
+        df4 = df4.rename({"projection": "difference_of_averages_of_projections"}, axis=1)
 
-        df = pd.merge(df, df2, on=["neutral", "dimension", "example"])
-        df3 = df3.drop(columns=['example'])
+        df = pd.merge(df, df2, on=["neutral", "dimension"])
         df = pd.merge(df, df3, on=["neutral", "dimension"])
+        df = pd.merge(df, df4, on=["neutral", "dimension"])
+
+        df = df.sort_values(["proj_to_centroid_of_differences"], axis=0)
         return df
 
     #
@@ -664,28 +732,6 @@ class WordEmbedding:
     #     diff = principal_axis_left - principal_axis_right
     #     diff = normalize(diff)
     #     return np.dot(neutral_word, diff)
-
-    def projections(self, neutral_words, word_pairs):
-        """Compute projections of a word to difference vectors ("dimensions") spanned by multiple
-        word pairs. Return result as a dataframe.
-
-        Args:
-            word (str): neutral word
-            list_of_word_pairs (List[List[str]]): list of word pairs defining the dimension
-
-        Returns:
-            DataFrame
-        """
-        result = []
-        for word in neutral_words:
-            for word_pair in word_pairs:
-                projection = self.projection(word, word_pair)
-                result.append([word, word_pair[0] + " - " + word_pair[1], projection])
-
-        result_dataframe = pd.DataFrame(result, columns=['neutral', 'dimension', 'projection'])
-        if self.training_data is not None:
-            result_dataframe['neutral_freq'] = [self.frequency_in_training_data(word) for word in result_dataframe['neutral']]
-        return result_dataframe
 
     def plot_dimension_quality_baseline(self, n_pairs=5, n_trials=100):
         """Plots the distribution of social dimension quality values for randomly sampled

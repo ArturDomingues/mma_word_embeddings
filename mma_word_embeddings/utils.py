@@ -27,15 +27,24 @@ def normalize(vector):
 
 
 def cell_colour(s, columns=None):
-  if columns is not None:
-    if s.name in columns:
-      cmap = COLORMAP
-      norm = mcolors.DivergingNorm(vmin=-1, vcenter=0, vmax=1)
-      return ['background-color: {:s}'.format(mcolors.to_hex(c.flatten())) for c in cmap(norm(s.values))]
-  else:
-    if all(isinstance(v, float) for v in s.values):
-      cmap = COLORMAP
-      norm = mcolors.DivergingNorm(vmin=-1, vcenter=0, vmax=1)
-      return ['background-color: {:s}'.format(mcolors.to_hex(c.flatten())) for c in cmap(norm(s.values))]
+    """Can be used to colour cells in dataframe: df.style.apply(cell_colour)"""
+    if columns is not None:
+        if s.name in columns:
+          cmap = COLORMAP
+          norm = mcolors.DivergingNorm(vmin=-1, vcenter=0, vmax=1)
+          return ['background-color: {:s}'.format(mcolors.to_hex(c.flatten())) for c in cmap(norm(s.values))]
+        else:
+            if all(isinstance(v, float) for v in s.values):
+              cmap = COLORMAP
+              norm = mcolors.DivergingNorm(vmin=-1, vcenter=0, vmax=1)
+              return ['background-color: {:s}'.format(mcolors.to_hex(c.flatten())) for c in cmap(norm(s.values))]
     else:
-      return [''] * len(s)
+        return [''] * len(s)
+
+
+def remove_if_not_in_vocab(vocab, list_of_words):
+    """Return new list that only contains words found in the vocab"""
+    not_in_vocab = [word for word in list_of_words if word not in vocab]
+    cleaned_list = [word for word in list_of_words if word not in not_in_vocab]
+    print("Removed the following words:", not_in_vocab)
+    return cleaned_list
