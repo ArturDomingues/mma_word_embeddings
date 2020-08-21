@@ -30,14 +30,14 @@ def cell_colour(s, columns=None):
     """Can be used to colour cells in dataframe: df.style.apply(cell_colour)"""
     if columns is not None:
         if s.name in columns:
-          cmap = COLORMAP
-          norm = mcolors.DivergingNorm(vmin=-1, vcenter=0, vmax=1)
-          return ['background-color: {:s}'.format(mcolors.to_hex(c.flatten())) for c in cmap(norm(s.values))]
+            cmap = COLORMAP
+            norm = mcolors.DivergingNorm(vmin=-1, vcenter=0, vmax=1)
+            return ['background-color: {:s}'.format(mcolors.to_hex(c.flatten())) for c in cmap(norm(s.values))]
         else:
             if all(isinstance(v, float) for v in s.values):
-              cmap = COLORMAP
-              norm = mcolors.DivergingNorm(vmin=-1, vcenter=0, vmax=1)
-              return ['background-color: {:s}'.format(mcolors.to_hex(c.flatten())) for c in cmap(norm(s.values))]
+                cmap = COLORMAP
+                norm = mcolors.DivergingNorm(vmin=-1, vcenter=0, vmax=1)
+                return ['background-color: {:s}'.format(mcolors.to_hex(c.flatten())) for c in cmap(norm(s.values))]
     else:
         return [''] * len(s)
 
