@@ -496,9 +496,10 @@ class WordEmbedding:
 
         Args:
             neutral (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
-            generating_words (list[list[str]] or dict): list of word pairs like
+            generating_words (list[list[str]] or dict):
+                list of word pairs like
 
-                    [['word1','word2'], ['anotherword1','anotherword2'], ...],
+                    [['man', 'woman'], ['he', 'she'],...],
 
                 OR dictionary of word pairs like
 
@@ -508,7 +509,14 @@ class WordEmbedding:
                      }
                 OR list of clusters like
 
-                    [['c1_word1', 'c1_word2',...], ['c2_word1', 'c2_word2',...]]
+                    [['man', 'he',...], ['girl', 'her',...]]
+
+                OR dictionary of clusters like
+
+                    {'gender': [['man', 'he',...], ['girl', 'her',...]],
+                     'race': [['black', ...], ['white', ...]],
+                     ...
+                     }
 
         Returns:
             DataFrame
@@ -537,10 +545,10 @@ class WordEmbedding:
          Args:
             neutral (str or list[str]): neutral word like 'land' OR list of neutral
               words like ['land', 'nurse',...]
+            generating_words (list[list[str]] or dict):
+                list of word pairs like
 
-            generating_words (list[list[str]] or dict): list of word pairs like
-
-                    [['word1','word2'], ['anotherword1','anotherword2'], ...],
+                    [['man', 'woman'], ['he', 'she'],...],
 
                 OR dictionary of word pairs like
 
@@ -550,8 +558,14 @@ class WordEmbedding:
                      }
                 OR list of clusters like
 
-                    [['c1_word1', 'c1_word2',...], ['c2_word1', 'c2_word2',...]]
+                    [['man', 'he',...], ['girl', 'her',...]]
 
+                OR dictionary of clusters like
+
+                    {'gender': [['man', 'he',...], ['girl', 'her',...]],
+                     'race': [['black', ...], ['white', ...]],
+                     ...
+                     }
         Returns:
             DataFrame
         """
@@ -581,9 +595,10 @@ class WordEmbedding:
 
         Args:
             neutral (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
-            generating_words (list[list[str]] or dict): list of word pairs like
+            generating_words (list[list[str]] or dict):
+                list of word pairs like
 
-                    [['word1','word2'], ['anotherword1','anotherword2'], ...],
+                    [['man', 'woman'], ['he', 'she'],...],
 
                 OR dictionary of word pairs like
 
@@ -593,8 +608,14 @@ class WordEmbedding:
                      }
                 OR list of clusters like
 
-                    [['c1_word1', 'c1_word2',...], ['c2_word1', 'c2_word2',...]]
+                    [['man', 'he',...], ['girl', 'her',...]]
 
+                OR dictionary of clusters like
+
+                    {'gender': [['man', 'he',...], ['girl', 'her',...]],
+                     'race': [['black', ...], ['white', ...]],
+                     ...
+                     }
         Returns:
             DataFrame
         """
@@ -624,9 +645,10 @@ class WordEmbedding:
 
         Args:
             neutral (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
-            generating_words (list[list[str]] or dict): list of word pairs like
+            generating_words (list[list[str]] or dict):
+                list of word pairs like
 
-                    [['word1','word2'], ['anotherword1','anotherword2'], ...],
+                    [['man', 'woman'], ['he', 'she'],...],
 
                 OR dictionary of word pairs like
 
@@ -636,7 +658,14 @@ class WordEmbedding:
                      }
                 OR list of clusters like
 
-                    [['c1_word1', 'c1_word2',...], ['c2_word1', 'c2_word2',...]]
+                    [['man', 'he',...], ['girl', 'her',...]]
+
+                OR dictionary of clusters like
+
+                    {'gender': [['man', 'he',...], ['girl', 'her',...]],
+                     'race': [['black', ...], ['white', ...]],
+                     ...
+                     }
 
         Returns:
             DataFrame
@@ -658,15 +687,16 @@ class WordEmbedding:
         df = df.sort_values(["projection"], axis=0)
         return df
 
-    def compare_projections(self, neutral, generating_words):
+    def compare_projections(self, neutral, generating_words, sort_by=None):
         """
         Merges the results of all "projection onto dimension" methods.
 
-                Args:
+        Args:
             neutral (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
-            generating_words (list[list[str]] or dict): list of word pairs like
+            generating_words (list[list[str]] or dict):
+                list of word pairs like
 
-                    [['word1','word2'], ['anotherword1','anotherword2'], ...],
+                    [['man', 'woman'], ['he', 'she'],...],
 
                 OR dictionary of word pairs like
 
@@ -676,26 +706,37 @@ class WordEmbedding:
                      }
                 OR list of clusters like
 
-                    [['c1_word1', 'c1_word2',...], ['c2_word1', 'c2_word2',...]]
+                    [['man', 'he',...], ['girl', 'her',...]]
+
+                OR dictionary of clusters like
+
+                    {'gender': [['man', 'he',...], ['girl', 'her',...]],
+                     'race': [['black', ...], ['white', ...]],
+                     ...
+                     }
 
         Returns:
             DataFrame
         """
-        df = self.average_projection_to_differences(neutral, generating_words)
-        df2 = self.projection_to_centroid_of_differences(neutral, generating_words)
-        df3 = self.projection_to_difference_of_cluster_centroids(neutral, generating_words)
+        df = self.projection_to_centroid_of_differences(neutral, generating_words)
+        df2 = self.projection_to_difference_of_cluster_centroids(neutral, generating_words)
+        df3 = self.average_projection_to_differences(neutral, generating_words)
         df4 = self.difference_of_averages_of_projections(neutral, generating_words)
 
-        df = df.rename({"projection": "proj_to_centroid_of_differences"}, axis=1)
-        df2 = df2.rename({"projection": "proj_to_difference_of_cluster_centroids"}, axis=1)
-        df3 = df3.rename({"projection": "proj_to_differences_averaged"}, axis=1)
+        df = df.rename({"projection": "projection_to_centroid_of_differences"}, axis=1)
+        df2 = df2.rename({"projection": "projection_to_difference_of_cluster_centroids"}, axis=1)
+        df3 = df3.rename({"projection": "average_projection_to_differences"}, axis=1)
         df4 = df4.rename({"projection": "difference_of_averages_of_projections"}, axis=1)
 
         df = pd.merge(df, df2, on=["neutral", "dimension"])
         df = pd.merge(df, df3, on=["neutral", "dimension"])
         df = pd.merge(df, df4, on=["neutral", "dimension"])
 
-        df = df.sort_values(["proj_to_centroid_of_differences"], axis=0)
+        if sort_by is None:
+            df = df.sort_values(["proj_to_centroid_of_differences"], axis=0)
+        else:
+            df = df.sort_values([sort_by], axis=0)
+
         df['MEAN'] = df.mean(numeric_only=True, axis=1)
         df['STD'] = df.std(numeric_only=True, axis=1)
         return df
