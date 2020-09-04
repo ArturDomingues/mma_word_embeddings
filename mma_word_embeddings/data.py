@@ -110,33 +110,39 @@ class DexterData:
 
         # FIRST STEP: CLEANING DOCUMENTS #########################
         print("...clean documents...")
+        self.description += r"...remove all words that have single upper case letters surrounded by lower case letters (to get rid of javascript) " + "\n"
+        self.description += r"...remove html formatting with BeautifulSoup (html.parser) " + "\n"
+        self.description += r"...remove expression '\xad' " + "\n"
+        self.description += r"...remove expression 'displayad'" + "\n"
+        self.description += r"...remove punctuation and digits" + "\n"
+        self.description += r"...remove words that contain substrings {}, ".format(GARBAGE) + "\n"
+        if remove_stopwords:
+            self.description += r"...remove words from nltk's list of english stopwords (making exceptions for {}),".format(
+                STOPWORD_EXCEPTIONS) + "\n"
+        self.description += r"...make all words lower case, " + "\n"
+        if lemmatize:
+            self.description += r"...lemmatize words with nltk's WordNetLemmatizer, " + "\n"
 
         for idx, document in enumerate(corpus):
 
-            if idx+1 % 1000 == 0:
+            if idx % 1000 == 0:
                 print("...cleaned first ", idx+1, " documents...")
 
             document = re.sub(r'\b[a-z]+(?:[A-Z][a-z]+)+\b', '', document)
-            self.description += r"...remove all words that have single upper case letters surrounded by lower case letters (to get rid of javascript) " + "\n"
 
             document = BeautifulSoup(document, "html.parser").text
-            self.description += r"...remove html formatting with BeautifulSoup (html.parser) " + "\n"
 
             document = document.replace(r'\xad', '')
-            self.description += r"...remove expression '\xad' " + "\n"
 
             document = document.replace('displayad', '')
-            self.description += r"...remove expression 'displayad'" + "\n"
 
             document = ''.join(char for word in document for char in word
                                if char not in PUNCTUATION and not char.isdigit())
-            self.description += r"...remove punctuation and digits" + "\n"
 
             # split string into list of words separated by whitespace
             document = document.split()
 
             document = [word for word in document if all(g not in word for g in GARBAGE)]
-            self.description += r"...remove words that contain substrings {}, ".format(GARBAGE) + "\n"
 
             if remove_stopwords:
                 document = [word for word in document if word not in stop or word in STOPWORD_EXCEPTIONS]
