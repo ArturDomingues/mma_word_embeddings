@@ -16,10 +16,11 @@ nltk.download('stopwords')
 nltk.download('wordnet')
 stop = stopwords.words('english')
 
-CUSTOM_STOPWORDS = ['said', 'a', 'i', 'could', 'if', 'we', 'would', 'could', 'in']
+CUSTOM_STOPWORDS = []
 STOPWORD_EXCEPTIONS = ['he', 'she', 'him', 'her', 'his', 'hers']
 PUNCTUATION = string.punctuation + "“”’‘‚…"  # add some symbols that have different ascii
 GARBAGE = ['windowtextcolor', ]
+
 
 class DexterData:
 
@@ -86,7 +87,7 @@ class DexterData:
         plt.legend(loc='upper right')
         plt.show()
 
-    def get_training_data(self, text_column, min_count_ngrams=5, threshold_ngrams=10,
+    def get_training_data(self, text_column, min_count_ngrams=50, threshold_ngrams=10,
                           remove_stopwords=False, lemmatize=False):
         """Get a representation of the data that can be used to train a word2vec model.
 

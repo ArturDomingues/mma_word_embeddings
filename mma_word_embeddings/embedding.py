@@ -18,7 +18,7 @@ pd.set_option('display.width', None)
 pd.set_option('display.max_colwidth', -1)
 pd.options.display.float_format = '{:,.4f}'.format
 
-COLORMAP = mcolors.LinearSegmentedColormap.from_list("MyCmapName",["r", "w", "g"])
+COLORMAP = mcolors.LinearSegmentedColormap.from_list("MyCmapName", ["r", "w", "g"])
 
 
 def _make_pairs(neutral, generating_words):
