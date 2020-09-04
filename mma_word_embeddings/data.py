@@ -142,9 +142,6 @@ class DexterData:
                 document = [word for word in document if word not in stop or word in STOPWORD_EXCEPTIONS]
                 self.description += r"...remove words from nltk's list of english stopwords (making exceptions for {}),".format(STOPWORD_EXCEPTIONS) + "\n"
 
-                document = [word for word in document if word not in CUSTOM_STOPWORDS]
-                self.description += r"...remove words from custom stopwords {}, ".format(CUSTOM_STOPWORDS) + "\n"
-
             document = [word.lower() for word in document]
             self.description += r"...make all words lower case, " + "\n"
 
