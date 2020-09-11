@@ -418,7 +418,7 @@ class WordEmbedding:
                 data.append([neutral_word, dim, res])
 
         df = pd.DataFrame(data, columns=["neutral", "dimension", "projection"])
-        df = df.sort_values(["projection"], axis=0)
+        df = df.sort_values(["dimension", "projection"], axis=0)
         return df
 
     def projections_to_unipolar_dimensions(self, neutral, generating_words):
@@ -460,7 +460,7 @@ class WordEmbedding:
                 data.append([neutral_word, dim, res])
 
         df = pd.DataFrame(data, columns=["neutral", "dimension", "projection"])
-        df = df.sort_values(["projection"], axis=0)
+        df = df.sort_values(["dimension", "projection"], axis=0)
         return df
 
     def plot_pca(self, list_of_words, n_comp=2):
