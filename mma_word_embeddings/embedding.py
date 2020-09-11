@@ -1,6 +1,6 @@
 # This file contains a wrapper class that represents word trained embeddings
 from gensim.models import KeyedVectors
-from mma_word_embeddings.utils import normalize, make_pairs
+from mma_word_embeddings.utils import normalize_vector, make_pairs
 import numpy as np
 from itertools import combinations_with_replacement
 import pandas as pd
@@ -35,8 +35,10 @@ def _make_pairs(neutral, generating_words):
     for dim, gen_words in generating_words.items():
         if all(len(ls) == 2 for ls in gen_words):
             pairs = gen_words
+
         elif len(gen_words) == 2:
             pairs = make_pairs(gen_words[0], gen_words[1], exclude_doubles=False)
+            print(pairs)
         else:
             raise ValueError("Cannot interpret generating_words list as list of word pairs, nor "
                              "as a list of two clusters. Please check that your input is correct.")
@@ -258,41 +260,20 @@ class WordEmbedding:
         return subset
 
     def vector(self, word):
-        """Return the vector representation of 'word' in the embedding."""
+        """Return the normalized vector representation of 'word' in the embedding."""
 
-        return normalize(self._word_vectors[word])
+        return normalize_vector(self._word_vectors[word])
 
     def vectors(self, list_of_words):
-        """Return a list of the vector representations of each 'word' in 'list_of_words'."""
+        """Return a list of the normalized vector representations of each 'word' in 'list_of_words'."""
+        return [self.vector(word) for word in list_of_words]
 
-        list_of_vectors = []
-        for word in list_of_words:
-            list_of_vectors.append(self.vector(word))
-        return list_of_vectors
-
-    def centroid_of_difference_vectors(self, list_of_word_pairs):
-        """Return the centroid vector of the differences of the word pairs provided."""
-
-        difference_vecs = self.difference_vectors(list_of_word_pairs)
-        difference_vecs = np.array(difference_vecs)
-        centroid = np.mean(difference_vecs, axis=0)
-        centroid = normalize(centroid)
-        return centroid
-
-    def centroid_of_vectors(self, list_of_words):
-        """Return the centroid vector of the words provided."""
-
-        vecs = [self.vector(word) for word in list_of_words]
-        vecs = np.array(vecs)
-        centroid = np.mean(vecs, axis=0)
-        centroid = normalize(centroid)
-        return centroid
-
-    def difference_vector(self, word1, word2):
-        """Return the normalised difference vector of 'word1' and 'word2'.
+    def difference_vector(self, word1, word2, normalize=False):
+        """Return the difference vector of 'word1' and 'word2'.
         Args:
             word1 (str): first word
             word2 (str): second word
+            normalize: whether the difference should be normalised
 
         Returns:
             ndarray: normalised difference vector
@@ -303,38 +284,41 @@ class WordEmbedding:
         if np.allclose(vec1, vec2, atol=1e-10):
             raise ValueError("The two words have the same vector representation, cannot compute their difference.")
         diff = vec1 - vec2
-        diff = normalize(diff)
+
+        if normalize:
+            diff = normalize_vector(diff)
         return diff
 
-    def difference_vectors(self, list_of_word_pairs):
+    def difference_vectors(self, list_of_word_pairs, normalize=False):
         """Return a list of difference vectors for the word pairs provided."""
+        return [self.difference_vector(word1, word2, normalize=normalize) for word1, word2 in list_of_word_pairs]
 
-        difference_vecs = [self.difference_vector(word1, word2) for word1, word2 in list_of_word_pairs]
-        return difference_vecs
+    def centroid_of_difference_vectors(self, list_of_word_pairs, normalize_diffs=False, normalize_centroid=False):
+        """Return the centroid vector of the differences of the word pairs provided."""
 
-    def variance_of_difference_vectors(self, list_of_word_pairs):
-        """Return the vector of variances of the differences of the word pairs provided."""
+        difference_vecs = self.difference_vectors(list_of_word_pairs, normalize=normalize_diffs)
+        centroid = np.mean(np.array(difference_vecs), axis=0)
+        if normalize_centroid:
+            return normalize_vector(centroid)
+        return centroid
 
-        difference_vecs = self.difference_vectors(list_of_word_pairs)
-        difference_vecs = np.array(difference_vecs)
-        variances = np.var(difference_vecs, axis=0)
-        return variances
+    def centroid_of_vectors(self, list_of_words, normalize=False):
+        """Return the centroid vector of the words provided."""
+
+        vecs = [self.vector(word) for word in list_of_words]
+        vecs = np.array(vecs)
+        centroid = np.mean(vecs, axis=0)
+        if normalize:
+            return normalize_vector(centroid)
+        return centroid
 
     def similarity(self, word1, word2):
-        """Return the cosine similarity between 'word1' and 'word2'."""
-
-        return self._word_vectors.similarity(word1, word2)
+        """Return the similarity between 'word1' and 'word2'. The result is a value between -1 and 1."""
+        return np.dot(self.vector(word1), self.vector(word2))
 
     def similarities(self, list_of_word_pairs):
         """Return the cosine similarities between words in list of word pairs."""
-
-        # collect results
-        result = []
-        for word1, word2 in list_of_word_pairs:
-            sim = self.similarity(word1, word2)
-            result.append([word1, word2, sim])
-
-        # turn into dataframe
+        result = [self.similarity(word1, word2) for word1, word2 in list_of_word_pairs]
         result_dataframe = pd.DataFrame(result, columns=['Word1', 'Word2', 'Similarity'])
         result_dataframe = result_dataframe.sort_values(["Similarity"], axis=0)
         return result_dataframe
@@ -359,18 +343,12 @@ class WordEmbedding:
         """Return the words least similar to 'word'."""
         return self.most_similar_by_vector(-vector, n=n)
 
-    def analogy(self, positive_list, negative_list, n=10):
-        """Returns words close to positive words and far away from negative words, as
-        proposed in https://www.aclweb.org/anthology/W14-1618.pdf"""
-        return self._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
-
-    def dimension_alignments(self, list_of_word_pairs):
+    def similarities_of_differences(self, list_of_word_pairs):
         """Construct the difference vectors for each word pair and return a dictionary of their similarities."""
 
-        # make all unique combinations
+        # make all unique combinations of pairs
         combinations_all_pairs = combinations_with_replacement(list_of_word_pairs, 2)
-        # remove doubles
-        # somehow the usual '==' does not work in colab
+        # remove doubles - somehow the usual '==' does not work in colab
         combinations_all_pairs = [c for c in combinations_all_pairs if c[0][0] != c[1][0] or c[0][1] != c[1][1]]
 
         result = []
@@ -383,8 +361,8 @@ class WordEmbedding:
             diff_pair2 = self.vector(pair2[0]) - self.vector(pair2[1])
 
             # normalise differences
-            diff_pair1 = normalize(diff_pair1)
-            diff_pair2 = normalize(diff_pair2)
+            diff_pair1 = normalize_vector(diff_pair1)
+            diff_pair2 = normalize_vector(diff_pair2)
 
             sim = np.dot(diff_pair1, diff_pair2)
             sim = round(sim, 4)
@@ -397,8 +375,13 @@ class WordEmbedding:
         result_dataframe = pd.DataFrame(result, columns=['Pair1', 'Pair2', 'Alignment'])
         return result_dataframe
 
+    def analogy(self, positive_list, negative_list, n=10):
+        """Returns words close to positive words and far away from negative words, as
+        proposed in https://www.aclweb.org/anthology/W14-1618.pdf"""
+        return self._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
+
     def projection(self, neutral_word, word_pair):
-        """Compute the projection of a word to the difference vector ("dimension") spanned by the word pair.
+        """Compute the projection of a word to the normalized difference vector of the word pair.
 
         Read the output as follows: if result is negative, it is closer to the SECOND word, else to the FIRST.
 
@@ -407,9 +390,9 @@ class WordEmbedding:
             word_pair (List[str]): list of (two) words defining the dimension
 
         Returns:
-            float
+            float in [-1, 1]
         """
-        diff = self.difference_vector(word_pair[0], word_pair[1])
+        diff = self.difference_vector(word_pair[0], word_pair[1], normalize=True)
         vec = self.vector(neutral_word)
         projection = np.dot(diff, vec)
         return projection
@@ -443,26 +426,6 @@ class WordEmbedding:
         Args:
             neutral (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
             generating_words (list[list[str]] or dict):
-                list of word pairs like
-
-                    [['man', 'woman'], ['he', 'she'],...],
-
-                OR dictionary of word pairs like
-
-                    {'gender': [['man', 'woman'], ['he', 'she'],...],
-                     'race': [['black', 'white'], ,...],
-                     ...
-                     }
-                OR list of clusters like
-
-                    [['man', 'he',...], ['girl', 'her',...]]
-
-                OR dictionary of clusters like
-
-                    {'gender': [['man', 'he',...], ['girl', 'her',...]],
-                     'race': [['black', ...], ['white', ...]],
-                     ...
-                     }
 
         Returns:
             DataFrame
@@ -476,9 +439,10 @@ class WordEmbedding:
 
             for name, word_pairs in dimensions.items():
                 centroid = self.centroid_of_difference_vectors(word_pairs)
-                dim = "{}".format(name)
+                centroid = normalize_vector(centroid)
                 res = np.dot(neutral_vec, centroid)
                 data.append([neutral_word, dim, res])
+                dim = "{}".format(name)
 
         df = pd.DataFrame(data, columns=["neutral", "dimension", "projection"])
         df = df.sort_values(["projection"], axis=0)
@@ -526,7 +490,7 @@ class WordEmbedding:
                 centroid_left_cluster = self.centroid_of_vectors(clusters[0])
                 centroid_right_cluster = self.centroid_of_vectors(clusters[1])
                 diff = centroid_left_cluster - centroid_right_cluster
-                diff = normalize(diff)
+                diff = normalize_vector(diff)
                 res = np.dot(neutral_vec, diff)
                 dim = "{}".format(name)
                 data.append([neutral_word, dim, res])
@@ -687,64 +651,6 @@ class WordEmbedding:
         df['STD'] = df.std(numeric_only=True, axis=1)
         return df
 
-    #
-    # def projection_to_principal_component(self, neutral_word, list_of_word_pairs):
-    #     """Compute the projection of a neutral word to the axis corresponding to the first principal
-    #     component of the vectors corresponding to all words in the list.
-    #
-    #     Args:
-    #         neutral_word (str): neutral word
-    #         list_of_word_pairs (List[List[str]]): list of lists of two words, like [['word1','word2'],
-    #         ['anotherword1','anotherword2'], ...]
-    #
-    #     Returns:
-    #         float
-    #     """
-    #     neutral_word = self.vector(neutral_word)
-    #
-    #     left = []
-    #     right = []
-    #     for word_pair in list_of_word_pairs:
-    #         left.append(self.vector(word_pair[0]))
-    #         right.append(self.vector(word_pair[1]))
-    #
-    #     X_left = np.array(left)
-    #     pca_transformer = PCA(n_components=1)
-    #     pca_transformer.fit_transform(X_left)
-    #     principal_axis_left = pca_transformer.components_[0]
-    #
-    #     X_right = np.array(right)
-    #     pca_transformer = PCA(n_components=1)
-    #     pca_transformer.fit_transform(X_right)
-    #     principal_axis_right = pca_transformer.components_[0]
-    #
-    #     diff = principal_axis_left - principal_axis_right
-    #     diff = normalize(diff)
-    #     return np.dot(neutral_word, diff)
-
-    def plot_dimension_quality_baseline(self, n_pairs=5, n_trials=100):
-        """Plots the distribution of social dimension quality values for randomly sampled
-         word pairs. This can be used as a baseline for how likely it is that a random list of word pairs scores a high
-         quality value.
-
-        Args:
-            n_pairs (int): number of word pairs to sample
-            n_trials (int): number of times the sampling is repeated
-        """
-
-        all_words = np.array(self.vocab())
-
-        results = []
-        for repeat in range(n_trials):
-            n_words = int(2*n_pairs)
-            random_words = np.random.choice(all_words, size=n_words)
-            random_word_pairs = random_words.reshape((n_pairs, 2))
-
-            results.append(self.dimension_quality(random_word_pairs))
-
-        plt.hist(results, bins=200, range=(-1, 1))
-        plt.show()
-
     def plot_pca(self, list_of_words, n_comp=2):
         """Plot the words in list_of_words in a PCA plot.
 
@@ -799,7 +705,7 @@ class WordEmbedding:
         pca_transformer.fit_transform(X)
 
         principal_vectors = pca_transformer.components_[:n_components]
-        principal_vectors = [normalize(vec) for vec in principal_vectors]
+        principal_vectors = [normalize_vector(vec) for vec in principal_vectors]
         return principal_vectors
 
     def words_closest_to_principal_components(self, list_of_words=None, n_components=3, n=5):
@@ -827,7 +733,7 @@ class WordEmbedding:
         for i in range(n_components):
 
             principal_axis = pca_transformer.components_[i]
-            principal_axis = normalize(principal_axis)
+            principal_axis = normalize_vector(principal_axis)
 
             data['princ_comp' + str(i+1)] = self.most_similar([principal_axis], n=n)
 

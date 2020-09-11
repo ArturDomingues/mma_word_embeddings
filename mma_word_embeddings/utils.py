@@ -15,7 +15,7 @@ def make_pairs(left_list, right_list, exclude_doubles=False):
     return pairs
 
 
-def normalize(vector):
+def normalize_vector(vector):
     """Normalize a vector and convert to numpy array."""
 
     vector = np.array(vector)
