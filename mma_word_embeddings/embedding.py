@@ -403,22 +403,26 @@ class WordEmbedding:
         for neutral_word in neutral_words:
 
             neutral_vec = self.vector(neutral_word)
+            row = [neutral_word]
 
-            for dim_name, dim_clusters in generating_words.items():
+            for dim_clusters in generating_words.values():
 
                 if len(dim_clusters) != 2:
-                    raise ValueError("Generating words must be a list of exactly two lists.")
+                    raise ValueError("Generating words must be a list of exactly two lists that contain words.")
 
                 centroid_left_cluster = self.centroid_of_vectors(dim_clusters[0])
                 centroid_right_cluster = self.centroid_of_vectors(dim_clusters[1])
                 diff = centroid_left_cluster - centroid_right_cluster
                 diff = normalize_vector(diff)
                 res = np.dot(neutral_vec, diff)
-                dim = "{}".format(dim_name)
-                data.append([neutral_word, dim, res])
+                row.append(res)
 
-        df = pd.DataFrame(data, columns=["neutral", "dimension", "projection"])
-        df = df.sort_values(["dimension", "projection"], axis=0)
+            data.append(row)
+
+        cols = ["neutral_word"] + list(generating_words)
+
+        df = pd.DataFrame(data, columns=cols)
+        df = df.sort_values(cols[1:], axis=0, ascending=False)
         return df
 
     def projections_to_unipolar_dimensions(self, neutral, generating_words):
@@ -447,8 +451,9 @@ class WordEmbedding:
         for neutral_word in neutral_words:
 
             neutral_vec = self.vector(neutral_word)
+            row = [neutral_word]
 
-            for dim_name, dim_cluster in generating_words.items():
+            for dim_cluster in generating_words.values():
 
                 if len(np.array(dim_cluster).shape) != 1:
                     raise ValueError("Generating words must be a list of words.")
@@ -456,11 +461,14 @@ class WordEmbedding:
                 centroid = self.centroid_of_vectors(dim_cluster)
                 centroid = normalize_vector(centroid)
                 res = np.dot(neutral_vec, centroid)
-                dim = "{}".format(dim_name)
-                data.append([neutral_word, dim, res])
+                row.append(res)
 
-        df = pd.DataFrame(data, columns=["neutral", "dimension", "projection"])
-        df = df.sort_values(["dimension", "projection"], axis=0)
+            data.append(row)
+
+        cols = ["neutral_word"] + list(generating_words)
+
+        df = pd.DataFrame(data, columns=cols)
+        df = df.sort_values(cols[1:], axis=0, ascending=False)
         return df
 
     def plot_pca(self, list_of_words, n_comp=2):
