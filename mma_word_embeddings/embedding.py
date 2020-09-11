@@ -441,8 +441,8 @@ class WordEmbedding:
                 centroid = self.centroid_of_difference_vectors(word_pairs)
                 centroid = normalize_vector(centroid)
                 res = np.dot(neutral_vec, centroid)
-                data.append([neutral_word, dim, res])
                 dim = "{}".format(name)
+                data.append([neutral_word, dim, res])
 
         df = pd.DataFrame(data, columns=["neutral", "dimension", "projection"])
         df = df.sort_values(["projection"], axis=0)
