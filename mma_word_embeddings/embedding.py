@@ -36,7 +36,7 @@ def _make_pairs(neutral, generating_words):
         if all(len(ls) == 2 for ls in gen_words):
             pairs = gen_words
         elif len(gen_words) == 2:
-            pairs = make_pairs(gen_words[0], gen_words[1], exclude_doubles=True)
+            pairs = make_pairs(gen_words[0], gen_words[1], exclude_doubles=False)
         else:
             raise ValueError("Cannot interpret generating_words list as list of word pairs, nor "
                              "as a list of two clusters. Please check that your input is correct.")
@@ -396,60 +396,6 @@ class WordEmbedding:
 
         result_dataframe = pd.DataFrame(result, columns=['Pair1', 'Pair2', 'Alignment'])
         return result_dataframe
-
-    def dimension_quality(self, list_of_word_pairs):
-        """Compute average similarity of difference vectors of all unique combinations of word pairs."""
-
-        # make all unique combinations
-        combinations_all_pairs = combinations_with_replacement(list_of_word_pairs, 2)
-        # remove doubles
-        # somehow the usual '==' does not work in colab
-        combinations_all_pairs = [c for c in combinations_all_pairs if c[0][0] != c[1][0] or c[0][1] != c[1][1]]
-
-        result = []
-        for combination in list(combinations_all_pairs):
-            pair1 = combination[0]
-            pair2 = combination[1]
-
-            # compute difference vectors
-            diff_pair1 = self.vector(pair1[0]) - self.vector(pair1[1])
-            diff_pair2 = self.vector(pair2[0]) - self.vector(pair2[1])
-            # normalise differences
-            diff_pair1 = normalize(diff_pair1)
-            diff_pair2 = normalize(diff_pair2)
-
-            sim = np.dot(diff_pair1, diff_pair2)
-            sim = round(sim, 4)
-            result.append(sim)
-
-        return np.mean(result)
-
-    def dimension_quality_baseline(self, n_pairs=5, n_trials=100):
-        """Compute mean and variance of the distribution of social dimension quality values for randomly sampled
-         word pairs. This can be used as a baseline for how likely it is that a random list of word pairs scores a high
-         quality value.
-
-        Args:
-            n_pairs (int): number of word pairs to sample
-            n_trials (int): number of times the experiment is repeated
-
-        Returns:
-            float, float: mean value and variance of the distribution of the resuls
-        """
-
-        all_words = np.array(self.vocab())
-
-        results = []
-        for repeat in range(n_trials):
-            n_words = int(2*n_pairs)
-            random_words = np.random.choice(all_words, size=n_words)
-            random_word_pairs = random_words.reshape((n_pairs, 2))
-
-            results.append(self.dimension_quality(random_word_pairs))
-
-        results = np.array(results)
-
-        return np.mean(results), np.var(results)
 
     def projection(self, neutral_word, word_pair):
         """Compute the projection of a word to the difference vector ("dimension") spanned by the word pair.
