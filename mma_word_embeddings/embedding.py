@@ -285,7 +285,7 @@ class WordEmbedding:
 
     def similarities(self, list_of_word_pairs):
         """Return the cosine similarities between words in list of word pairs."""
-        result = [self.similarity(word1, word2) for word1, word2 in list_of_word_pairs]
+        result = [round(self.similarity(word1, word2), 3) for word1, word2 in list_of_word_pairs]
         result_dataframe = pd.DataFrame(result, columns=['Word1', 'Word2', 'Similarity'])
         result_dataframe = result_dataframe.sort_values(["Similarity"], axis=0)
         return result_dataframe
@@ -293,7 +293,9 @@ class WordEmbedding:
     def most_similar(self, word, n=10):
         """Return the words most similar to 'word'."""
 
-        return self._word_vectors.most_similar(word, topn=n)
+        ms = self._word_vectors.most_similar(word, topn=n)
+        ms = [(word, round(s, 3)) for word, s in ms]
+        return ms
 
     def most_similar_by_vector(self, vector, n=10):
         """Return the words most similar to 'vector'."""
@@ -576,7 +578,7 @@ class WordEmbedding:
 
             for idx, vec in enumerate(p_vecs):
                 cols += ["{}-P{}".format(dim_name, idx+1)]
-                print("{}-P{} is most similar to the words: ".format(dim_name, idx), self.most_similar([vec], n=n))
+                print("{}-P{} is similar to: ".format(dim_name, idx), self.most_similar([vec], n=n))
 
         data = []
         for neutral_word in neutral_words:
