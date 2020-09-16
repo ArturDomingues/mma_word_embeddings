@@ -4,6 +4,41 @@ import matplotlib.colors as mcolors
 COLORMAP = mcolors.LinearSegmentedColormap.from_list("MyCmapName",["r", "w", "g"])
 
 
+def kernel(x, y, sig):
+    return np.exp(-np.power(x - y, 2.) / (2 * np.power(sig, 2.)))
+
+
+# KL divergence, credit to https://pastebin.com/yyf6efXs
+def kl_divergence(p, q):
+    """Kullback-Leibler divergence D(P || Q) for discrete distributions
+
+    Parameters
+    ----------
+    p, q : array-like, dtype=float, shape=n
+        Discrete probability distributions.
+    """
+    p = np.asarray(p, dtype=np.float)
+    q = np.asarray(q, dtype=np.float)
+
+    return np.sum(np.where(p != 0, p * np.log(p / q), 0))
+
+
+def mmd2(samples_a, samples_b, sigma=1):
+    """Compute maximum mean discrepancy."""
+    range_a = range(len(samples_a))
+    range_b = range(len(samples_b))
+
+    aa = np.sum([kernel(samples_a[i], samples_a[j], sig=sigma) for i in range_a for j in range_a if i != j])
+    bb = np.sum([kernel(samples_b[i], samples_b[j], sig=sigma) for i in range_b for j in range_b if i != j])
+    ab = np.sum([kernel(samples_a[i], samples_b[j], sig=sigma) for i in range_a for j in range_b])
+
+    aa = aa / (len(samples_a) * (len(samples_a)-1))
+    bb = bb / (len(samples_b) * (len(samples_b)-1))
+    ab = (2 * ab) / (len(samples_a) * len(samples_b))
+
+    return aa + bb - ab
+
+
 def make_pairs(left_list, right_list, exclude_doubles=False):
     """Takes two lists of words and returns all pairs that can be formed between them."""
 

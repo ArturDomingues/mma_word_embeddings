@@ -1,6 +1,6 @@
 # This file contains a wrapper class that represents word trained embeddings
 from gensim.models import KeyedVectors
-from mma_word_embeddings.utils import normalize_vector, make_pairs
+from mma_word_embeddings.utils import normalize_vector, make_pairs, kl_divergence, mmd2
 import numpy as np
 from itertools import combinations_with_replacement
 import pandas as pd
@@ -260,6 +260,25 @@ class WordEmbedding:
             return normalize_vector(centroid)
         return centroid
 
+    def principal_component_vectors(self, list_of_words=None, n_components=3):
+        """Get the n_component first principal component vectors of the words.
+
+        Args:
+            list_of_words (list[str]): list of words
+            n_components (int): number of components
+        Returns:
+            DataFrame
+        """
+
+        X = [self.vector(word) for word in list_of_words]
+        X = np.array(X)
+        pca_transformer = PCA(n_components=n_components)
+        pca_transformer.fit_transform(X)
+
+        principal_vectors = pca_transformer.components_[:n_components]
+        principal_vectors = [normalize_vector(vec) for vec in principal_vectors]
+        return principal_vectors
+
     def similarity(self, word1, word2):
         """Return the similarity between 'word1' and 'word2'. The result is a value between -1 and 1."""
         return np.dot(self.vector(word1), self.vector(word2))
@@ -322,6 +341,57 @@ class WordEmbedding:
 
         result_dataframe = pd.DataFrame(result, columns=['Pair1', 'Pair2', 'Alignment'])
         return result_dataframe
+
+    def principal_vectors(self, list_of_words, n_components=3, n=5, normalize=False):
+        """Get the words closest to the principal components of the word vectors in the vocab.
+
+        Args:
+            list_of_words (list[str]): list with words
+            n_components (int): number of components
+            n (int): number of neighbours to print for each component
+            normalize (bool): whether to normalise the principal vectors
+
+        Returns:
+            list of vectors
+        """
+        X = []
+        for word in list_of_words:
+            X.append(self.vector(word))
+
+        X = np.array(X)
+        pca_transformer = PCA(n_components=n_components)
+        pca_transformer.fit_transform(X)
+
+        principal_vecs = pca_transformer.components_[:n_components]
+
+        if normalize:
+            return [normalize_vector(v) for v in principal_vecs]
+
+        return principal_vecs
+
+    def words_closest_to_principal_components(self, list_of_words=None, n_components=3, n=5):
+        """Get the words closest to the principal components of the word vectors in the vocab.
+
+        Args:
+            n_components (int): number of components
+            n (int): number of neighbours to print for each component
+
+        Returns:
+            DataFrame
+        """
+
+        if list_of_words is None:
+            list_of_words = self.vocab()
+
+        principal_vecs = self.principal_vectors(list_of_words, n_components=n_components, n=n, normalize_vector=True)
+
+        data = {}
+
+        for idx, vec in enumerate(principal_vecs):
+            data['princ_comp' + str(idx+1)] = self.most_similar([vec], n=n)
+
+        df = pd.DataFrame(data)
+        return df
 
     def analogy(self, positive_list, negative_list, n=10):
         """Returns words close to positive words and far away from negative words, as
@@ -471,6 +541,76 @@ class WordEmbedding:
         df = df.sort_values(cols[1:], axis=0, ascending=False)
         return df
 
+    def projections_to_principal_components(self, neutral, generating_words, n_components=3, n=5):
+        """Compute the projection of a neutral word onto the first n_components principal vectors.
+
+        The n words closest to those principal vectors are printed to get a feeling for what these components mean.
+
+        Args:
+            neutral (str or list[str]): neutral word like 'land' OR list of neutral
+                                        words like ['land', 'nurse',...]
+            generating_words (dict): dictionary of clusters like
+
+                    {'male': ['man', 'he',...]
+                     'female': ['him', 'her' ...],
+                     ...
+                     }
+        Returns:
+            DataFrame
+        """
+        if isinstance(neutral, str):
+            neutral_words = [neutral]
+        else:
+            neutral_words = neutral
+
+        # collect principal vectors
+        principal_vecs = {}
+        cols = ["neutral_word"]
+        for dim_name, dim_cluster in generating_words.items():
+
+            if len(np.array(dim_cluster).shape) != 1:
+                raise ValueError("Generating words must be a list of words.")
+
+            p_vecs = self.principal_vectors(dim_cluster, n_components=n_components, n=n, normalize=True)
+            principal_vecs[dim_name] = p_vecs
+
+            for idx, vec in enumerate(p_vecs):
+                cols += ["{}-P{}".format(dim_name, idx+1)]
+                print("{}-P{} is most similar to the words: ".format(dim_name, idx), self.most_similar([vec], n=n))
+
+        data = []
+        for neutral_word in neutral_words:
+
+            neutral_vec = self.vector(neutral_word)
+            row = [neutral_word]
+            for dim_name, p_vecs in principal_vecs.items():
+
+                for vec in p_vecs:
+                    res = np.dot(neutral_vec, vec)
+                    row.append(res)
+
+            data.append(row)
+
+        df = pd.DataFrame(data, columns=cols)
+        df = df.sort_values(cols[1:], axis=0, ascending=False)
+        return df
+
+    def cluster_diversity(self, list_of_words, method="centroid_length", **kwargs):
+        """Compute a measure of the diversity of a list of words.
+
+        This is done by computing the distribution of similarities between all possible pairs of words in the cluster,
+        and comparing it with a uniform distribution.
+        """
+        if method == "centroid_length":
+            centroid = self.centroid_of_vectors(list_of_words, normalize=False)
+            return np.dot(centroid, centroid)
+
+        elif method == "mmd":
+            kernel = kwargs.get("kernel", None)
+
+        else:
+            raise ValueError("Method {} not recognised.".format(method))
+
     def plot_pca(self, list_of_words, n_comp=2):
         """Plot the words in list_of_words in a PCA plot.
 
@@ -509,78 +649,6 @@ class WordEmbedding:
 
         plt.show()
 
-    def principal_component_vectors(self, list_of_words=None, n_components=3):
-        """Get the n_component first principal component vectors of the words.
-
-        Args:
-            list_of_words (list[str]): list of words
-            n_components (int): number of components
-        Returns:
-            DataFrame
-        """
-
-        X = [self.vector(word) for word in list_of_words]
-        X = np.array(X)
-        pca_transformer = PCA(n_components=n_components)
-        pca_transformer.fit_transform(X)
-
-        principal_vectors = pca_transformer.components_[:n_components]
-        principal_vectors = [normalize_vector(vec) for vec in principal_vectors]
-        return principal_vectors
-
-    def words_closest_to_principal_components(self, list_of_words=None, n_components=3, n=5):
-        """Get the words closest to the principal components of the word vectors in the vocab.
-
-        Args:
-            n_components (int): number of components
-            n (int): number of neighbours to print for each component
-
-        Returns:
-            DataFrame
-        """
-
-        X = []
-        if list_of_words is None:
-            list_of_words = self.vocab()
-        for word in list_of_words:
-            X.append(self.vector(word))
-
-        X = np.array(X)
-        pca_transformer = PCA(n_components=n_components)
-        pca_transformer.fit_transform(X)
-
-        data = {}
-        for i in range(n_components):
-
-            principal_axis = pca_transformer.components_[i]
-            principal_axis = normalize_vector(principal_axis)
-
-            data['princ_comp' + str(i+1)] = self.most_similar([principal_axis], n=n)
-
-        df = pd.DataFrame(data)
-        return df
-
-    def plot_word_as_colourarray(self, word):
-        """Visualise a word's vector as an array of coloured blocks.
-        """
-
-        X = np.array([self.vector(word)])
-        plt.figure(figsize=(20, 1))
-        plt.imshow(X)
-        plt.yticks(ticks=[0], labels=[word])
-        plt.xlabel("dimension in embedding space")
-        plt.show()
-
-    def plot_vector_as_colourarray(self, vector, name='vector'):
-        """Visualise a vector as an array of coloured blocks.
-        """
-        X = np.array(vector)
-        plt.figure(figsize=(20, 1))
-        plt.imshow(X)
-        plt.yticks(ticks=[0], label=name)
-        plt.xlabel("dimension in embedding space")
-        plt.show()
-
     def plot_words_as_colourarray(self, list_of_words, include_centroid=False, include_princ_comp=None,
                                   include_diff_vectors=None):
         """Visualise word vectors as arrays of coloured blocks.
@@ -617,17 +685,6 @@ class WordEmbedding:
         plt.figure(figsize=(20, 1 + 0.2 * len(list_of_words)))
         plt.imshow(X)
         plt.yticks(ticks=range(len(list_of_words)), labels=list_of_words)
-        plt.xlabel("dimension in embedding space")
-        plt.show()
-
-    def plot_vectors_as_colourarray(self, list_of_vectors, names=None):
-        """Visualise vectors as arrays of coloured blocks."""
-        if names is None:
-            names = ["vector" + str(i) for i in range(len(list_of_vectors))]
-        X = np.array(list_of_vectors)
-        plt.figure(figsize=(20, 1 + 0.2 * len(list_of_vectors)))
-        plt.imshow(X)
-        plt.yticks(ticks=range(len(list_of_vectors)), labels=names)
         plt.xlabel("dimension in embedding space")
         plt.show()
 
