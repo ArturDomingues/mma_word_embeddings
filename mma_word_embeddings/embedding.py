@@ -383,7 +383,7 @@ class WordEmbedding:
         if list_of_words is None:
             list_of_words = self.vocab()
 
-        principal_vecs = self.principal_vectors(list_of_words, n_components=n_components, n=n, normalize_vector=True)
+        principal_vecs = self.principal_vectors(list_of_words, n_components=n_components, n=n, normalize=True)
 
         data = {}
 
