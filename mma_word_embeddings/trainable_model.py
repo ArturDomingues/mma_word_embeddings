@@ -98,17 +98,19 @@ class Word2VecModel(TrainableModel):
     def __init__(self, path_training_data, path_description):
         super().__init__(path_training_data, path_description)
 
+    def _prepare_data(self):
+        # tokenize
+        return [document.split() for document in self.training_data]
+
     def make_embedding(self, hyperparameters):
         """Train a Word2Vec model and extract the embedding."""
 
-        # tokenize
-        training_data = [document.split() for document in self.training_data]
+        training_data = self._prepare_data()
 
         # train a model
         model = Word2Vec(training_data, **hyperparameters)
-        model.train(...)
         # normalise the word vectors
-        model = model.wv.init_sims(replace=True)
+        model.wv.init_sims(replace=True)
         # extract a keyed_vectors object
         emb = model.wv
 
@@ -129,7 +131,7 @@ class BertModel(TrainableModel):
         input_ids = []
         tokenized_texts = []
 
-        for doc in self.training_dat:
+        for doc in self.training_data:
             encoded_dict = tokenizer.encode_plus(
                 doc,  # Sentence to encode.
                 add_special_tokens=True,  # Add '[CLS]' and '[SEP]'

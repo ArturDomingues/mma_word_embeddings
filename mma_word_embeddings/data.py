@@ -110,7 +110,8 @@ class DexterData:
 
         # FIRST STEP: CLEANING DOCUMENTS #########################
         print("...clean documents...")
-        self.description += r"...remove all words that have single upper case letters surrounded by lower case letters (to get rid of javascript) " + "\n"
+        self.description += r"...remove all words that have single upper case letters surrounded by lower case " \
+                            r"letters (to get rid of javascript) " + "\n"
         self.description += r"...remove html formatting with BeautifulSoup (html.parser) " + "\n"
         self.description += r"...remove expression '\xad' " + "\n"
         self.description += r"...remove expression 'displayad'" + "\n"
@@ -123,40 +124,41 @@ class DexterData:
         if lemmatize:
             self.description += r"...lemmatize words with nltk's WordNetLemmatizer, " + "\n"
 
-        for idx, document in enumerate(corpus):
+        corpus = [document.split(".") for document in corpus]
+        sentences = [sentence for document in corpus for sentence in document]
+        print(sentences)
 
-            if idx % 1000 == 0:
-                print("...cleaned first ", idx+1, " documents...")
+        for idx, sentence in enumerate(sentences):
 
-            document = re.sub(r'\b[a-z]+(?:[A-Z][a-z]+)+\b', '', document)
+                if idx % 1000 == 0:
+                    print("...cleaned first ", idx+1, " documents...")
 
-            document = BeautifulSoup(document, "html.parser").text
+                sentence = re.sub(r'\b[a-z]+(?:[A-Z][a-z]+)+\b', '', sentence)
 
-            document = document.replace(r'\xad', '')
+                sentence = BeautifulSoup(sentence, "html.parser").text
 
-            document = document.replace('displayad', '')
+                sentence = sentence.replace(r'\xad', '')
 
-            document = ''.join(char for word in document for char in word
-                               if char not in PUNCTUATION and not char.isdigit())
+                sentence = sentence.replace('displayad', '')
 
-            # split string into list of words separated by whitespace
-            document = document.split()
+                sentence = ''.join(char for word in sentence for char in word
+                                   if char not in PUNCTUATION and not char.isdigit())
 
-            document = [word for word in document if all(g not in word for g in GARBAGE)]
+                # split string into list of words separated by whitespace
+                sentence = sentence.split()
 
-            if remove_stopwords:
-                document = [word for word in document if word not in stop or word in STOPWORD_EXCEPTIONS]
-                self.description += r"...remove words from nltk's list of english stopwords (making exceptions for {}),".format(STOPWORD_EXCEPTIONS) + "\n"
+                sentence = [word for word in sentence if all(g not in word for g in GARBAGE)]
 
-            document = [word.lower() for word in document]
-            self.description += r"...make all words lower case, " + "\n"
+                if remove_stopwords:
+                    sentence = [word for word in sentence if word not in stop or word in STOPWORD_EXCEPTIONS]
 
-            if lemmatize:
-                lm = nltk.WordNetLemmatizer()
-                document = [lm.lemmatize(word) for word in document]
-                self.description += r"...lemmatize words with nltk's WordNetLemmatizer, " + "\n"
+                sentence = [word.lower() for word in sentence]
 
-            cleaned_data.append(document)
+                if lemmatize:
+                    lm = nltk.WordNetLemmatizer()
+                    sentence = [lm.lemmatize(word) for word in sentence]
+
+                cleaned_data.append(sentence)
 
         # SECOND STEP: make N-Grams #########################
         print("...make bigrams and trigrams...")
@@ -177,7 +179,7 @@ class DexterData:
 
         ##########################
 
-        self.training_data = cleaned_data
+        self.training_data = [sentence for sentence in cleaned_data if sentence != []]
 
         return cleaned_data
 
