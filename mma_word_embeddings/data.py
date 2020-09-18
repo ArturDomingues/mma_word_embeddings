@@ -103,10 +103,7 @@ class DexterData:
 
         print("Process data...")
         self.description += "Data preprocessing included the following steps: \n"
-
-        # create list of word lists per document (i.e., newspaper article, utterance)
-        cleaned_data = []
-        corpus = self.data[text_column].to_list()
+        self.description += "...split documents into sentences\n"
 
         # FIRST STEP: CLEANING DOCUMENTS #########################
         print("...clean documents...")
@@ -124,14 +121,18 @@ class DexterData:
         if lemmatize:
             self.description += r"...lemmatize words with nltk's WordNetLemmatizer, " + "\n"
 
+        # create list of word lists per document (i.e., newspaper article, utterance)
+        cleaned_data = []
+        corpus = self.data[text_column].to_list()
+
         corpus = [document.split(".") for document in corpus]
         sentences = [sentence for document in corpus for sentence in document]
         print(sentences)
 
         for idx, sentence in enumerate(sentences):
 
-                if idx % 1000 == 0:
-                    print("...cleaned first ", idx+1, " documents...")
+                if idx % 10000 == 0:
+                    print("...cleaned first ", idx+1, " sentences...")
 
                 sentence = re.sub(r'\b[a-z]+(?:[A-Z][a-z]+)+\b', '', sentence)
 
