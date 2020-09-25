@@ -45,10 +45,6 @@ class TrainableModel:
                         "to train each embedding.\n".format(100*share_of_original_data, len(self.training_data))
         self.log += "The model generating the embedding was trained with the following " \
                     "hyperparameters: \n {}\n".format(hyperparameters)
-        with open(output_path + "-training-data.txt", "w") as f:
-            for document in self.training_data:
-                sentence = " ".join(word for word in document)
-                f.write('%s\n' % sentence)
         with open(output_path + "-description.txt", "w") as f:
             f.write(self.log)
 

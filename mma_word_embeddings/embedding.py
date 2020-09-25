@@ -37,21 +37,15 @@ class WordEmbedding:
             # load the word vectors of an embedding
             self._word_vectors = KeyedVectors.load(path_to_embedding)
         except:
-            raise EmbeddingError("Failed to load the embedding. In 99.999% of all cases this means your path is wrong. Good luck.")
+            raise EmbeddingError("Failed to load the embedding. In 99.999% of all cases this means your "
+                                 "path is wrong. Good luck.")
 
         self.description = "This object represents the {} word embedding.".format(path_to_embedding)
         self.path_to_embedding = path_to_embedding.replace("/content/drive/My Drive/", "")
 
-        training_data = []
+        self.training_data = None
         if path_training_data is not None:
-            with open(path_training_data, "r") as f:
-                for line in f:
-                    stripped_line = line.strip()
-                    line_list = stripped_line.split()
-                    training_data.append(line_list)
-            self.training_data = training_data
-        else:
-            self.training_data = None
+            self.load_training_data()
 
         print("...finished loading.")
 
@@ -82,6 +76,46 @@ class WordEmbedding:
     def in_vocab(self, word):
         """Return whether word is in vocab."""
         return word in list(self._word_vectors.vocab)
+
+    def random_words(self, n_words=100, min_frequency=None):
+        """Return a list of random words from the vocab of this embedding.
+
+        If the training data is loaded, the minimum frequency can be specified.
+
+        Args:
+            n_words (int): number of random words to select
+            min_frequency (int): minimum frequency of the word in the training data
+
+        Returns:
+            list(str): random words
+        """
+
+        if min_frequency is not None and self.training_data is None:
+            raise ValueError("This function needs access to the training data. "
+                             "Please load the training data with the 'load_training_data()' "
+                             "function and then try again. ")
+
+        result = []
+        vocab = self.vocab()
+        counter = 0
+        reps = 0
+        while counter < n_words:
+            if reps > 50000:
+                raise ValueError("Could not find enough words above frequency threshold after sampling 50,000 times. "
+                                 "Please lower the frequency threshold.")
+            reps += 1
+
+            word = np.random.choice(vocab)
+            if min_frequency is not None:
+                f = self.frequency_in_training_data(word)
+                print("---", word, f)
+                if f < min_frequency:
+                    continue
+
+            result.append(word)
+            counter += 1
+
+        return result
 
     def load_training_data(self, path_training_data):
         """Load training data into embedding after embedding was created."""
@@ -260,7 +294,7 @@ class WordEmbedding:
             return normalize_vector(centroid)
         return centroid
 
-    def principal_component_vectors(self, list_of_words=None, n_components=3):
+    def principal_components(self, list_of_words=None, n_components=3, normalize=False):
         """Get the n_component first principal component vectors of the words.
 
         Args:
@@ -276,8 +310,27 @@ class WordEmbedding:
         pca_transformer.fit_transform(X)
 
         principal_vectors = pca_transformer.components_[:n_components]
-        principal_vectors = [normalize_vector(vec) for vec in principal_vectors]
+        if normalize:
+            principal_vectors = [normalize_vector(vec) for vec in principal_vectors]
         return principal_vectors
+
+    def principal_components_variance(self, list_of_words=None, n_components=3):
+        """The amount of variance explained by each of the principal components of the words in the list.
+
+        Args:
+            list_of_words (list[str]): list of words
+            n_components (int): number of components
+        Returns:
+            list
+        """
+
+        X = [self.vector(word) for word in list_of_words]
+        X = np.array(X)
+        pca_transformer = PCA(n_components=n_components)
+        pca_transformer.fit_transform(X)
+
+        explained_variance = pca_transformer.explained_variance_[:n_components]
+        return explained_variance
 
     def similarity(self, word1, word2):
         """Return the similarity between 'word1' and 'word2'. The result is a value between -1 and 1."""
@@ -285,7 +338,7 @@ class WordEmbedding:
 
     def similarities(self, list_of_word_pairs):
         """Return the cosine similarities between words in list of word pairs."""
-        result = [round(self.similarity(word1, word2), 3) for word1, word2 in list_of_word_pairs]
+        result = [[word1, word2, round(self.similarity(word1, word2), 3)] for word1, word2 in list_of_word_pairs]
         result_dataframe = pd.DataFrame(result, columns=['Word1', 'Word2', 'Similarity'])
         result_dataframe = result_dataframe.sort_values(["Similarity"], axis=0)
         return result_dataframe
@@ -343,33 +396,6 @@ class WordEmbedding:
 
         result_dataframe = pd.DataFrame(result, columns=['Pair1', 'Pair2', 'Alignment'])
         return result_dataframe
-
-    def principal_vectors(self, list_of_words, n_components=3, n=5, normalize=False):
-        """Get the words closest to the principal components of the word vectors in the vocab.
-
-        Args:
-            list_of_words (list[str]): list with words
-            n_components (int): number of components
-            n (int): number of neighbours to print for each component
-            normalize (bool): whether to normalise the principal vectors
-
-        Returns:
-            list of vectors
-        """
-        X = []
-        for word in list_of_words:
-            X.append(self.vector(word))
-
-        X = np.array(X)
-        pca_transformer = PCA(n_components=n_components)
-        pca_transformer.fit_transform(X)
-
-        principal_vecs = pca_transformer.components_[:n_components]
-
-        if normalize:
-            return [normalize_vector(v) for v in principal_vecs]
-
-        return principal_vecs
 
     def words_closest_to_principal_components(self, list_of_words=None, n_components=3, n=5):
         """Get the words closest to the principal components of the word vectors in the vocab.
@@ -557,6 +583,9 @@ class WordEmbedding:
                      'female': ['him', 'her' ...],
                      ...
                      }
+            n_components (int): number of components to consider
+            n (int): number of similar words to print
+
         Returns:
             DataFrame
         """
@@ -573,7 +602,7 @@ class WordEmbedding:
             if len(np.array(dim_cluster).shape) != 1:
                 raise ValueError("Generating words must be a list of words.")
 
-            p_vecs = self.principal_vectors(dim_cluster, n_components=n_components, n=n, normalize=True)
+            p_vecs = self.principal_components(dim_cluster, n_components=n_components, normalize=True)
             principal_vecs[dim_name] = p_vecs
 
             for idx, vec in enumerate(p_vecs):

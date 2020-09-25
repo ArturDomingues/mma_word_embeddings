@@ -127,12 +127,11 @@ class DexterData:
 
         corpus = [document.split(".") for document in corpus]
         sentences = [sentence for document in corpus for sentence in document]
-        print(sentences)
 
         for idx, sentence in enumerate(sentences):
 
                 if idx % 10000 == 0:
-                    print("...cleaned first ", idx+1, " sentences...")
+                    print("...cleaned first ", idx, " sentences...")
 
                 sentence = re.sub(r'\b[a-z]+(?:[A-Z][a-z]+)+\b', '', sentence)
 
