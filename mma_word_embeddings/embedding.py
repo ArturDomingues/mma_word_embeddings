@@ -108,7 +108,6 @@ class WordEmbedding:
             word = np.random.choice(vocab)
             if min_frequency is not None:
                 f = self.frequency_in_training_data(word)
-                print("---", word, f)
                 if f < min_frequency:
                     continue
 
