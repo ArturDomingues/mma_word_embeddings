@@ -103,6 +103,8 @@ class WordEmbedding:
             if reps > 50000:
                 raise ValueError("Could not find enough words above frequency threshold after sampling 50,000 times. "
                                  "Please lower the frequency threshold.")
+            if reps % 500 == 0:
+                print("...checked frequency of {} random words and accepted word if high enough...".format(reps))
             reps += 1
 
             word = np.random.choice(vocab)
@@ -410,7 +412,7 @@ class WordEmbedding:
         if list_of_words is None:
             list_of_words = self.vocab()
 
-        principal_vecs = self.principal_vectors(list_of_words, n_components=n_components, n=n, normalize=True)
+        principal_vecs = self.principal_components(list_of_words, n_components=n_components, n=n, normalize=True)
 
         data = {}
 
