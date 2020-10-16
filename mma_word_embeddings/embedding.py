@@ -822,11 +822,14 @@ class EmbeddingEnsemble:
             raise ValueError("This function needs access to the training data. "
                              "Please load the training data with the 'load_training_data()' "
                              "function and then try again. ")
-        data = []
-        for word in list_of_words:
-            data.append([word, self.frequency_in_training_data(word)])
 
-        res = pd.DataFrame(data, columns=['Word', 'Frequency'])
+        data = dict(zip(list_of_words, [0]*len(list_of_words)))
+        for sentence in self.training_data:
+            for word in sentence:
+                if word in list_of_words:
+                    data[word] += 1
+
+        res = pd.DataFrame({'Word': data.keys(), 'Frequency': data.values()})
         res = res.sort_values(by='Frequency', axis=0, ascending=False)
         res = res.reset_index(drop=True)
         return res
