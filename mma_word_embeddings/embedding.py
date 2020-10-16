@@ -170,6 +170,9 @@ class WordEmbedding:
                              "Please load the training data with the 'load_training_data()' "
                              "function and then try again. ")
 
+        if more_frequent_than == 0:
+            more_frequent_than = None
+
         flat_training_data = [wrd for document in self.training_data for wrd in document]
         c = Counter(flat_training_data)
 
