@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from sklearn.manifold import TSNE
 from collections import Counter
-from random import choices
+from random import sample
 
 # Make pandas print full data frame
 pd.set_option('display.max_rows', None)
@@ -101,7 +101,7 @@ class WordEmbedding:
         else:
             vocab = self.vocab()
 
-        return choices(vocab, k=n_words)
+        return sample(vocab, n_words)
 
     def load_training_data(self, path_training_data):
         """Load training data into embedding after embedding was created."""
