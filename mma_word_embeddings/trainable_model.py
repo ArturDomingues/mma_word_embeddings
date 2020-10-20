@@ -47,7 +47,7 @@ class TrainableModel:
 
         if n_models is None:
             # train embedding on full data
-            emb = self.make_embedding(hyperparameters)
+            emb = self.make_embedding(self.training_data, hyperparameters)
 
             # save embedding
             output_path = output_path + ".emb"
@@ -79,7 +79,7 @@ class TrainableModel:
                             output_path))
                 emb.save(output_path)
 
-    def make_embedding(self, hyperparameters):
+    def make_embedding(self, train_data, hyperparameters):
         return NotImplemented
 
     def _load_training_data(self, path):
@@ -99,11 +99,11 @@ class Word2VecModel(TrainableModel):
                 stripped_line = line.strip()
                 self.training_data.append(stripped_line.split())
 
-    def make_embedding(self, hyperparameters):
+    def make_embedding(self, train_data, hyperparameters):
         """Train a Word2Vec model and extract the embedding."""
 
         # train a model
-        model = Word2Vec(self.training_data, **hyperparameters)
+        model = Word2Vec(train_data, **hyperparameters)
         # normalise the word vectors
         model.wv.init_sims(replace=True)
         # extract a keyed_vectors object
