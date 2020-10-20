@@ -58,7 +58,6 @@ class TrainableModel:
             emb.save(output_path)
 
         else:
-
             # save multiple models trained on bootstrapped/subsampled data
             for m in range(n_models):
 
