@@ -10,6 +10,7 @@ import matplotlib.colors as mcolors
 from sklearn.manifold import TSNE
 from collections import Counter
 from random import sample
+import glob
 
 # Make pandas print full data frame
 pd.set_option('display.max_rows', None)
@@ -695,418 +696,149 @@ class WordEmbedding:
         plt.show()
 
 
-# class EmbeddingEnsemble:
-#     """Applies actions to an list_of_embeddings of trained embeddings."""
-#
-#     def __init__(self, path_to_embeddings, path_training_data=None):
-#
-#         self.list_of_embeddings = []
-#
-#         if isinstance(path_to_embeddings, list):
-#
-#             paths = path_to_embeddings
-#
-#         else:
-#
-#             paths = glob.glob(path_to_embeddings + '*.emb')
-#
-#             if len(paths) == 0:
-#                 raise EmbeddingError("Failed to find any appropriate file. Please make sure that "
-#                                      "there are trained embeddings under this path.".format(path_to_embeddings))
-#
-#         # Iterate through all paths
-#         for path in paths:
-#
-#             try:
-#                 # load the word vectors of an embedding
-#                 emb = WordEmbedding(path)
-#             except FileNotFoundError:
-#                 raise EmbeddingError("Failed to load the trained embeddings {}. Please make sure that "
-#                                      "the path to this file really exists.".format(path))
-#
-#             self.list_of_embeddings.append(emb)
-#
-#         self.description = "This object represents the list_of_embeddings {} of {} word trained embeddings."\
-#             .format(path_to_embeddings, len(self.list_of_embeddings))
-#
-#         training_data = []
-#         if path_training_data is not None:
-#             with open(path_training_data, "r") as f:
-#                 for line in f:
-#                     stripped_line = line.strip()
-#                     line_list = stripped_line.split()
-#                     training_data.append(line_list)
-#             self.training_data = training_data
-#         else:
-#             self.training_data = None
-#
-#         # standard columns of data frame
-#         self.cols = ['emb' + str(i+1) for i in range(len(self.list_of_embeddings))]
-#
-#         print("Loaded {} trained embeddings.".format(len(self.list_of_embeddings)))
-#
-#     def load_training_data(self, path_training_data):
-#         """Load training data into embedding after embedding was created."""
-#         training_data = []
-#         if path_training_data is not None:
-#             with open(path_training_data, "r") as f:
-#                 for line in f:
-#                     stripped_line = line.strip()
-#                     line_list = stripped_line.split()
-#                     training_data.append(line_list)
-#             self.training_data = training_data
-#
-#     def context_in_training_data(self, word, n=3):
-#         """Return whether word is in vocab. Only works if training data was loaded.
-#         Args:
-#             word (str): Word to search for
-#             n (int): number of neighbouring words to print
-#         """
-#         if self.training_data is None:
-#             raise ValueError("This function needs access to the training data. "
-#                              "Please load the training data with the 'load_training_data()' "
-#                              "function and then try again. ")
-#         context = []
-#         for sentence in self.training_data:
-#             for idx, token in enumerate(sentence):
-#                 if word == token:
-#                     start = 0 if (idx - n < 0) else idx - n
-#                     stop = len(sentence) - 1 if (idx + n > len(sentence) - 1) else idx + n
-#                     string = " ".join(sentence[start:stop + 1])
-#                     context.append(string)
-#         return context
-#
-#     def frequency_in_training_data(self, word):
-#         """Return how often the word appears in the training data. Only works if training data was loaded."""
-#         if self.training_data is None:
-#             raise ValueError("This function needs access to the training data. "
-#                              "Please load the training data with the 'load_training_data()' "
-#                              "function and then try again. ")
-#
-#         counter = 0
-#         for sentence in self.training_data:
-#             for token in sentence:
-#                 if word == token:
-#                     counter += 1
-#         return counter
-#
-#     def sort_by_frequency_in_training_data(self, list_of_words):
-#         """Return a table in which the words are sorted by the frequency with which they appear in the training data."""
-#         if self.training_data is None:
-#             raise ValueError("This function needs access to the training data. "
-#                              "Please load the training data with the 'load_training_data()' "
-#                              "function and then try again. ")
-#
-#         data = dict(zip(list_of_words, [0] * len(list_of_words)))
-#         for sentence in self.training_data:
-#             for word in sentence:
-#                 if word in list_of_words:
-#                     data[word] += 1
-#
-#         res = pd.DataFrame({'Word': data.keys(), 'Frequency': data.values()})
-#         res = res.sort_values(by='Frequency', axis=0, ascending=False)
-#         res = res.reset_index(drop=True)
-#         return res
-#
-#     def vocab_sorted_by_frequency_in_training_data(self, n_grams=None, first_n=None, more_frequent_than=None):
-#         """Return the vocab sorted by the frequency with which they appear in the training data.
-#
-#         Args:
-#              n_grams (int): by specifying "1, 2, 3..." you can limit the vocab to n_grams
-#              first_n (int): only return n most frequent words (-n for last n words). Overwrites up_to argument!
-#              more_frequent_than (int): only return words up to frequency "up_to"
-#         """
-#
-#         if self.training_data is None:
-#             raise ValueError("This function needs access to the training data. "
-#                              "Please load the training data with the 'load_training_data()' "
-#                              "function and then try again. ")
-#
-#         vocab = self.vocab()
-#         if n_grams is not None:
-#             vocab = [word for word in vocab if word.count("_") == n_grams - 1]
-#
-#         res = self.sort_by_frequency_in_training_data(vocab)
-#
-#         if first_n is not None:
-#             res = res.head(n=first_n)
-#         if more_frequent_than is not None:
-#             res = res[res['Frequency'] > more_frequent_than]
-#         return res
-#
-#     def training_data_size(self):
-#         """Return how many words are in the training data. Only works if training data was loaded."""
-#         if self.training_data is None:
-#             raise ValueError("This function needs access to the training data. "
-#                              "Please load the training data with the 'load_training_data()' "
-#                              "function and then try again. ")
-#
-#         counter = 0
-#         for sentence in self.training_data:
-#             counter += len(sentence)
-#         return counter
-#
-#     def n_embeddings(self):
-#         """Return the number of embeddings in the list_of_embeddings."""
-#         return len(self.list_of_embeddings)
-#
-#     def vocab_size(self):
-#         """Return the size of the vocabulary in the embeddings."""
-#         individual = [emb.vocab_size() for emb in self.list_of_embeddings]
-#
-#         data = [['size'] + individual]
-#         df = pd.DataFrame(data, columns=[''] + self.cols)
-#         df['MEAN'] = df.mean(numeric_only=True, axis=1)
-#         df['STD'] = df.std(numeric_only=True, axis=1)
-#         return df
-#
-#     def shared_vocab(self):
-#         """Return the subset of the vocab that is shared by all embeddings in the list_of_embeddings
-#         (i.e. the intersection of their vocab)."""
-#         vocabs = [emb.vocab() for emb in self.list_of_embeddings]
-#         shared_vocab = set(vocabs[0]).intersection(*vocabs)
-#         return list(shared_vocab)
-#
-#     def in_vocab(self, word):
-#         """Return whether word is in vocab."""
-#         individual = [emb.in_vocab(word) for emb in self.list_of_embeddings]
-#         data = [['in_vocab'] + individual]
-#         df = pd.DataFrame(data, columns=[''] + self.cols)
-#         df['MEAN'] = df.mean(numeric_only=True, axis=1)
-#         return df
-#
-#     def similarity(self, word1, word2):
-#         """Return the cosine similarities between 'word1' and 'word2'."""
-#         individual = [emb.similarity(word1, word2) for emb in self.list_of_embeddings]
-#         data = [['similarity'] + individual]
-#         df = pd.DataFrame(data, columns=[''] + self.cols)
-#         df['MEAN'] = df.mean(numeric_only=True, axis=1)
-#         df['STD'] = df.std(numeric_only=True, axis=1)
-#         return df
-#
-#     def similarities(self, list_of_word_pairs):
-#         """Return the cosine similarities between the pairs of words."""
-#         base_df = self.list_of_embeddings[0].similarities(list_of_word_pairs)
-#         base_df = base_df.rename({"Similarity": "Sim_emb1"}, axis=1)
-#         for idx, emb in enumerate(self.list_of_embeddings[1:]):
-#             df = emb.similarities(list_of_word_pairs)
-#             df = df.rename({"Similarity": "Sim_emb" + str(idx+2)}, axis=1)
-#             base_df = pd.merge(base_df, df, on=['Word1', 'Word2'])
-#
-#         base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
-#         base_df['STD'] = base_df.std(numeric_only=True, axis=1)
-#         if self.training_data is not None:
-#             base_df['Word1_freq'] = [self.frequency_in_training_data(word) for word in base_df['Word1']]
-#             base_df['Word2_freq'] = [self.frequency_in_training_data(word) for word in base_df['Word2']]
-#         return base_df
-#
-#     def similarity_test(self, n_pairs=1000, min_frequency=20):
-#         """Return the average standard deviation of the similarity between n_pairs randomly sampled pairs of words.
-#         All words are guaranteed to appear at least min_frequency times in the shared training data."""
-#
-#         if self.training_data is None:
-#             raise ValueError("This function needs access to the training data. "
-#                              "Please load the training data with the 'load_training_data()' "
-#                              "function and then try again. ")
-#
-#         all_words = np.array(self.shared_vocab())
-#         n_words = int(2 * n_pairs)
-#
-#         # create pairs of random words with frequency larger than min_frequency
-#         random_words = []
-#         counter = 0
-#         while counter < n_words:
-#             random_word = np.random.choice(all_words)
-#             if self.frequency_in_training_data(random_word) >= min_frequency:
-#                 random_words.append(random_word)
-#                 counter += 1
-#         random_word_pairs = np.array(random_words).reshape((n_pairs, 2))
-#
-#         df = self.similarities(random_word_pairs)
-#         average_std = df['STD'].mean()
-#         return average_std
-#
-#     def most_similar(self, word, n=10):
-#         """Return the words most similar to 'word' in each embedding."""
-#         data_raw = [emb.most_similar(word, n=n) for emb in self.list_of_embeddings]
-#         data_raw = [[str(i+1) for i in range(n)]] + data_raw
-#         data = np.array(data_raw).T
-#         df = pd.DataFrame(data, columns=['rank'] + self.cols)
-#         return df
-#
-#     def least_similar(self, word, n=10):
-#         """Return the words least similar to 'word' in each embedding."""
-#         data_raw = [emb.least_similar(word, n=n) for emb in self.list_of_embeddings]
-#         data_raw = [[str(i+1) for i in range(n)]] + data_raw
-#         data = np.array(data_raw).T
-#         df = pd.DataFrame(data, columns=['rank'] + self.cols)
-#         return df
-#
-#     def analogy(self, positive_list, negative_list, n=10):
-#         """Returns words close to positive words and far away from negative words, as
-#         proposed in https://www.aclweb.org/anthology/W14-1618.pdf"""
-#         data_raw = [emb.analogy(positive_list, negative_list, n=n) for emb in self.list_of_embeddings]
-#         data_raw = [[str(i+1) for i in range(n)]] + data_raw
-#         data = np.array(data_raw).T
-#         df = pd.DataFrame(data, columns=['rank'] + self.cols)
-#         return df
-#
-#     def dimension_alignments(self, list_of_word_pairs):
-#         """Construct the difference vectors for each word pair and return their similarities."""
-#
-#         base_df = self.list_of_embeddings[0].dimension_alignments(list_of_word_pairs)
-#         base_df = base_df.rename({"Alignment": "alignment_emb1"}, axis=1)
-#         for idx, emb in enumerate(self.list_of_embeddings[1:]):
-#             df = emb.dimension_alignments(list_of_word_pairs)
-#             df = df.rename({"Alignment": "alignment_emb" + str(idx+2)}, axis=1)
-#             base_df = pd.merge(base_df, df, on=['Pair1', 'Pair2'])
-#
-#         base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
-#         base_df['STD'] = base_df.std(numeric_only=True, axis=1)
-#         return base_df
-#
-#     def dimension_quality(self, list_of_word_pairs):
-#         """Compute average similarity of difference vectors of all unique combinations of word pairs."""
-#         individual = [emb.dimension_quality(list_of_word_pairs) for emb in self.list_of_embeddings]
-#         data = [['mean_alignment'] + individual]
-#         df = pd.DataFrame(data, columns=[''] + self.cols)
-#         df['MEAN'] = df.mean(numeric_only=True, axis=1)
-#         df['STD'] = df.std(numeric_only=True, axis=1)
-#         return df
-#
-#     def projection(self, neutral_word, word_pair):
-#         """Compute the projection of a word to the difference vector ("dimension") spanned by the word pair.
-#
-#         Args:
-#             word (str): neutral word
-#             word_pair (List[str]): list of (two) words defining the dimension
-#
-#         Returns:
-#             float
-#         """
-#         data = [['projection'] + [emb.projection(neutral_word, word_pair) for emb in self.list_of_embeddings]]
-#         df = pd.DataFrame(data, columns=[''] + self.cols)
-#         df['MEAN'] = df.mean(numeric_only=True, axis=1)
-#         df['STD'] = df.std(numeric_only=True, axis=1)
-#         return df
-#
-#     def projections(self, neutral_words, word_pairs):
-#         """Compute projections of a word to difference vectors ("dimensions") spanned by multiple
-#         word pairs. Return result as a dataframe.
-#
-#         Args:
-#             word (str): neutral word
-#             list_of_word_pairs (List[List[str]]): list of word pairs defining the dimension
-#
-#         Returns:
-#             DataFrame
-#         """
-#
-#         base_df = self.list_of_embeddings[0].projections(neutral_words, word_pairs)
-#         base_df = base_df.rename({"Projection": "projection_emb1"}, axis=1)
-#         for idx, emb in enumerate(self.list_of_embeddings[1:]):
-#             df = emb.projections(neutral_words, word_pairs)
-#             df = df.rename({"Projection": "projection_emb" + str(idx+2)}, axis=1)
-#             base_df = pd.merge(base_df, df, on=['neutral', 'dimension'])
-#
-#         base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
-#         base_df['STD'] = base_df.std(numeric_only=True, axis=1)
-#         return base_df
-#
-#     def projection_to_centroid_of_differences(self, neutral_word, word_pairs):
-#         """For each embedding, compute the projection of a word to the centroid of the difference vectors spanned by the word pairs.
-#
-#         Args:
-#            neutral_word (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
-#            word_pairs (List[List[str]]): list of word pairs
-#                like
-#
-#                [['word1','word2'], ['anotherword1','anotherword2'], ...],
-#
-#                OR dictionary of word pairs like
-#
-#                {'gender': [['man', 'woman'], ['he', 'she'],...],
-#                 'race': [['black', 'white'], ,...],
-#                 ...
-#                 }
-#
-#         Returns:
-#             DataFrame
-#         """
-#         base_df = self.list_of_embeddings[0].projection_to_centroid_of_differences(neutral_word, word_pairs)
-#         base_df = base_df.rename({"projection": "projection_emb1"}, axis=1)
-#         for idx, emb in enumerate(self.list_of_embeddings[1:]):
-#             df = emb.projection_to_centroid_of_differences(neutral_word, word_pairs)
-#             df = df.rename({"projection": "projection_emb" + str(idx+2)}, axis=1)
-#             base_df = pd.merge(base_df, df, on=["neutral", "dimension", "example"])
-#
-#         base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
-#         base_df['STD'] = base_df.std(numeric_only=True, axis=1)
-#
-#         return base_df
-#
-#     def projection_to_difference_of_cluster_centroids(self, neutral_word, word_pairs):
-#         """For each embedding, compute the projection of a word to the difference between the two centroids computed from the cluster of
-#          words in each "pole".
-#
-#         Args:
-#            neutral_word (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
-#            word_pairs (List[List[str]]): list of word pairs
-#                like
-#
-#                [['word1','word2'], ['anotherword1','anotherword2'], ...],
-#
-#                OR dictionary of word pairs like
-#
-#                {'gender': [['man', 'woman'], ['he', 'she'],...],
-#                 'race': [['black', 'white'], ,...],
-#                 ...
-#                 }
-#
-#         Returns:
-#             DataFrame
-#         """
-#         base_df = self.list_of_embeddings[0].projection_to_difference_of_cluster_centroids(neutral_word, word_pairs)
-#         base_df = base_df.rename({"projection": "projection_emb1"}, axis=1)
-#         for idx, emb in enumerate(self.list_of_embeddings[1:]):
-#             df = emb.projection_to_difference_of_cluster_centroids(neutral_word, word_pairs)
-#             df = df.rename({"projection": "projection_emb" + str(idx + 2)}, axis=1)
-#             base_df = pd.merge(base_df, df, on=["neutral", "dimension", "example"])
-#
-#         base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
-#         base_df['STD'] = base_df.std(numeric_only=True, axis=1)
-#
-#         return base_df
-#
-#     def projection_to_differences_averaged(self, neutral_word, word_pairs):
-#         """For each embedding, compute the average of the projection of a word to the difference vectors spanned by the word pairs.
-#
-#         Args:
-#             neutral_word (str or list[str]): neutral word like 'land' OR list of neutral words like ['land', 'nurse',...]
-#             word_pairs (List[List[str]]): list of word pairs
-#                 like
-#
-#                 [['word1','word2'], ['anotherword1','anotherword2'], ...],
-#
-#                 OR dictionary of word pairs like
-#
-#                 {'gender': [['man', 'woman'], ['he', 'she'],...],
-#                  'race': [['black', 'white'], ,...],
-#                  ...
-#                  }
-#
-#         Returns:
-#             DataFrame
-#         """
-#         base_df = self.list_of_embeddings[0].projection_to_differences_averaged(neutral_word, word_pairs)
-#         base_df = base_df.rename({"projection": "projection_emb1"}, axis=1)
-#         for idx, emb in enumerate(self.list_of_embeddings[1:]):
-#             df = emb.projection_to_differences_averaged(neutral_word, word_pairs)
-#             df = df.rename({"projection": "projection_emb" + str(idx+2)}, axis=1)
-#             base_df = pd.merge(base_df, df, on=["neutral", "dimension", "example"])
-#
-#         base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
-#         base_df['STD'] = base_df.std(numeric_only=True, axis=1)
-#
-#         return base_df
+class EmbeddingEnsemble:
+    """Applies actions to an list_of_embeddings of trained embeddings."""
+
+    def __init__(self, path_to_embeddings):
+
+        self.list_of_embeddings = []
+
+        if isinstance(path_to_embeddings, list):
+
+            paths = path_to_embeddings
+
+        else:
+
+            paths = glob.glob(path_to_embeddings + '*.emb')
+
+            if len(paths) == 0:
+                raise EmbeddingError("Failed to find any appropriate file. Please make sure that "
+                                     "there are trained embeddings under this path.".format(path_to_embeddings))
+
+        # Iterate through all paths
+        for path in paths:
+
+            try:
+                # load the word vectors of an embedding
+                emb = WordEmbedding(path)
+            except FileNotFoundError:
+                raise EmbeddingError("Failed to load the trained embeddings {}. Please make sure that "
+                                     "the path to this file really exists.".format(path))
+
+            self.list_of_embeddings.append(emb)
+
+        self.description = "This object represents the list_of_embeddings {} of {} word trained embeddings."\
+            .format(path_to_embeddings, len(self.list_of_embeddings))
+
+    def shared_vocab(self):
+        """Return the subset of the vocab that is shared by all embeddings in the list_of_embeddings
+        (i.e. the intersection of their vocab)."""
+        vocabs = [emb.vocab() for emb in self.list_of_embeddings]
+        shared_vocab = set(vocabs[0]).intersection(*vocabs)
+        return list(shared_vocab)
+
+    def in_vocab(self, word):
+        """Return whether word is in vocab."""
+        individual = [emb.in_vocab(word) for emb in self.list_of_embeddings]
+        data = [['in_vocab'] + individual]
+        df = pd.DataFrame(data, columns=[''] + self.cols)
+        df['MEAN'] = df.mean(numeric_only=True, axis=1)
+        return df
+
+    def similarity(self, word1, word2):
+        """Return the cosine similarities between 'word1' and 'word2'."""
+        individual = [emb.similarity(word1, word2) for emb in self.list_of_embeddings]
+        data = [['similarity'] + individual]
+        df = pd.DataFrame(data, columns=[''] + self.cols)
+        df['MEAN'] = df.mean(numeric_only=True, axis=1)
+        df['STD'] = df.std(numeric_only=True, axis=1)
+        return df
+
+    def similarities(self, list_of_word_pairs):
+        """Return the cosine similarities between the pairs of words."""
+        base_df = self.list_of_embeddings[0].similarities(list_of_word_pairs)
+        base_df = base_df.rename({"Similarity": "Sim_emb1"}, axis=1)
+        for idx, emb in enumerate(self.list_of_embeddings[1:]):
+            df = emb.similarities(list_of_word_pairs)
+            df = df.rename({"Similarity": "Sim_emb" + str(idx+2)}, axis=1)
+            base_df = pd.merge(base_df, df, on=['Word1', 'Word2'])
+
+        base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
+        base_df['STD'] = base_df.std(numeric_only=True, axis=1)
+        if self.training_data is not None:
+            base_df['Word1_freq'] = [self.frequency_in_training_data(word) for word in base_df['Word1']]
+            base_df['Word2_freq'] = [self.frequency_in_training_data(word) for word in base_df['Word2']]
+        return base_df
+
+    def projections_to_bipolar_dimensions(self, neutral, generating_words):
+        """ Same as the embedding method with the same name, but produces an average of the projections of each ensemble.
+        """
+        if isinstance(neutral, str):
+            neutral_words = [neutral]
+        else:
+            neutral_words = neutral
+
+        data = []
+        for neutral_word in neutral_words:
+            row = [neutral_word]
+
+            for dim_clusters in generating_words.values():
+
+                if len(dim_clusters) != 2:
+                    raise ValueError("Generating words must be a list of exactly two lists that contain words.")
+
+                results = []
+                for emb in self.list_of_embeddings:
+                    neutral_vec = emb.vector(neutral_word)
+                    centroid_left_cluster = emb.centroid_of_vectors(dim_clusters[0])
+                    centroid_right_cluster = emb.centroid_of_vectors(dim_clusters[1])
+                    diff = centroid_left_cluster - centroid_right_cluster
+                    diff = normalize_vector(diff)
+                    res = np.dot(neutral_vec, diff)
+                    results.append(res)
+                row.append("{:.3f}({})".format(np.mean(results), np.std(results)))
+
+            data.append(row)
+
+        cols = ["neutral_word"] + list(generating_words)
+
+        df = pd.DataFrame(data, columns=cols)
+
+        df = df.sort_values(cols[1:], axis=0, ascending=False)
+        return df
+
+    def projections_to_unipolar_dimensions(self, neutral, generating_words):
+        """Same as the embedding method with the same name, but produces an average of the projections of each ensemble.
+        """
+        if isinstance(neutral, str):
+            neutral_words = [neutral]
+        else:
+            neutral_words = neutral
+
+        data = []
+        for neutral_word in neutral_words:
+            row = [neutral_word]
+
+            for dim_cluster in generating_words.values():
+
+                if len(np.array(dim_cluster).shape) != 1:
+                    raise ValueError("Generating words must be a list of words.")
+
+                results = []
+                for emb in self.list_of_embeddings:
+                    neutral_vec = emb.vector(neutral_word)
+                    centroid = emb.centroid_of_vectors(dim_cluster)
+                    centroid = normalize_vector(centroid)
+                    res = np.dot(neutral_vec, centroid)
+                    results.append(res)
+
+                row.append("{:.3f}({})".format(np.mean(results), np.std(results)))
+
+            data.append(row)
+
+        cols = ["neutral_word"] + list(generating_words)
+
+        df = pd.DataFrame(data, columns=cols)
+        df = df.sort_values(cols[1:], axis=0, ascending=False)
+        return df
 
