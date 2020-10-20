@@ -14,11 +14,7 @@ class TrainableModel:
     def __init__(self, path_training_data, path_description):
 
         # load training data and save as list of strings, each string representing a document
-        self.training_data = []
-        with open(path_training_data, "r") as f:
-            for line in f:
-                stripped_line = line.strip()
-                self.training_data.append(stripped_line)
+        self._load_training_data(path_training_data)
 
         self.log = ""
         # Save the description in the log,
@@ -86,6 +82,9 @@ class TrainableModel:
     def make_embedding(self, hyperparameters):
         return NotImplemented
 
+    def _load_training_data(self, path):
+        return NotImplemented
+
 
 class Word2VecModel(TrainableModel):
     """Train a word embedding using a Word2Vec model."""
@@ -93,17 +92,18 @@ class Word2VecModel(TrainableModel):
     def __init__(self, path_training_data, path_description):
         super().__init__(path_training_data, path_description)
 
-    def _prepare_data(self):
-        # tokenize
-        return [document.split() for document in self.training_data]
+    def _load_training_data(self, path):
+        self.training_data = []
+        with open(path, "r") as f:
+            for line in f:
+                stripped_line = line.strip()
+                self.training_data.append(stripped_line.split())
 
     def make_embedding(self, hyperparameters):
         """Train a Word2Vec model and extract the embedding."""
 
-        training_data = self._prepare_data()
-
         # train a model
-        model = Word2Vec(training_data, **hyperparameters)
+        model = Word2Vec(self.training_data, **hyperparameters)
         # normalise the word vectors
         model.wv.init_sims(replace=True)
         # extract a keyed_vectors object
