@@ -68,7 +68,14 @@ class TrainableModel:
                 bootstrapped_train_data = list(np.random.choice(self.training_data, size=n_documents, replace=True))
 
                 # train the embedding
-                emb = self.make_embedding(bootstrapped_train_data, hyperparameters)
+                #emb = self.make_embedding(bootstrapped_train_data, hyperparameters)
+
+                # train a model
+                model = Word2Vec(bootstrapped_train_data, **hyperparameters)
+                # normalise the word vectors
+                model.wv.init_sims(replace=True)
+                # extract a keyed_vectors object
+                emb = model.wv
 
                 # save the embedding
                 output_path = output_path + "-" + str(m) + ".emb"
