@@ -37,7 +37,6 @@ class TrainableModel:
 
         if seed is not None:
             np.random.seed(seed)
-            torch.manual_seed(seed)
 
         # update description already here, in case training crashes
         if n_models is not None:
