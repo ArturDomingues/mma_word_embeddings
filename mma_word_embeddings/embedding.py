@@ -788,15 +788,45 @@ class EmbeddingEnsemble:
                     raise ValueError("Generating words must be a list of exactly two lists that contain words.")
 
                 results = []
-                for emb in self.list_of_embeddings:
-                    neutral_vec = emb.vector(neutral_word)
-                    centroid_left_cluster = emb.centroid_of_vectors(dim_clusters[0])
-                    centroid_right_cluster = emb.centroid_of_vectors(dim_clusters[1])
-                    diff = centroid_left_cluster - centroid_right_cluster
-                    diff = normalize_vector(diff)
-                    res = np.dot(neutral_vec, diff)
-                    results.append(res)
-                row.append("{:.3f}({})".format(np.mean(results), np.std(results)))
+                for id, emb in enumerate(self.list_of_embeddings):
+
+                    if not emb.in_vocab(neutral_word):
+                        print("WARNING: Test word {} not in vocab of embedding no {}; "
+                              "this embedding will not be used to compute the projection "
+                              "of the test word.".format(neutral_word, id))
+
+                    else:
+                        neutral_vec = emb.vector(neutral_word)
+
+                        left = []
+                        for gw in dim_clusters[0]:
+                            if not emb.in_vocab(gw):
+                                print("WARNING: Generating word {} not in vocab of embedding no {}; "
+                                      "this word will not be used to construct the {} dimension in this "
+                                      "embedding.".format(gw, id))
+                            else:
+                                left.append(gw)
+                        centroid_left_cluster = emb.centroid_of_vectors(left)
+
+                        right = []
+                        for gw in dim_clusters[1]:
+                            if not emb.in_vocab(gw):
+                                print("WARNING: Generating word {} not in vocab of embedding no {}; "
+                                      "this word will not be used to construct the dimension in this "
+                                      "embedding.".format(gw, id))
+                            else:
+                                right.append(gw)
+                        centroid_right_cluster = emb.centroid_of_vectors(right)
+
+                        diff = centroid_left_cluster - centroid_right_cluster
+                        diff = normalize_vector(diff)
+                        res = np.dot(neutral_vec, diff)
+                        results.append(res)
+
+                if not results:
+                    row.append("n/a")
+                else:
+                    row.append("{:.3f}({})".format(np.mean(results), np.std(results)))
 
             data.append(row)
 
@@ -817,6 +847,7 @@ class EmbeddingEnsemble:
 
         data = []
         for neutral_word in neutral_words:
+
             row = [neutral_word]
 
             for dim_cluster in generating_words.values():
@@ -825,14 +856,33 @@ class EmbeddingEnsemble:
                     raise ValueError("Generating words must be a list of words.")
 
                 results = []
-                for emb in self.list_of_embeddings:
-                    neutral_vec = emb.vector(neutral_word)
-                    centroid = emb.centroid_of_vectors(dim_cluster)
-                    centroid = normalize_vector(centroid)
-                    res = np.dot(neutral_vec, centroid)
-                    results.append(res)
+                for id, emb in enumerate(self.list_of_embeddings):
 
-                row.append("{:.3f}({})".format(np.mean(results), np.std(results)))
+                    if not emb.in_vocab(neutral_word):
+                        print("WARNING: Test word {} not in vocab of embedding no {}; "
+                              "this embedding will not be used to compute the projection "
+                              "of the test word.".format(neutral_word, id))
+                    else:
+                        neutral_vec = emb.vector(neutral_word)
+
+                        allowed_gws = []
+                        for gw in dim_cluster:
+                            if not emb.in_vocab(gw):
+                                print("WARNING: Generating word {} not in vocab of embedding no {}; "
+                                      "this word will not be used to construct the dimension in this "
+                                      "embedding.".format(gw, id))
+                            else:
+                                allowed_gws.append(gw)
+
+                        centroid = emb.centroid_of_vectors(allowed_gws)
+                        centroid = normalize_vector(centroid)
+                        res = np.dot(neutral_vec, centroid)
+                        results.append(res)
+
+                if not results:
+                    row.append("n/a")
+                else:
+                    row.append("{:.3f}({})".format(np.mean(results), np.std(results)))
 
             data.append(row)
 
