@@ -2,10 +2,6 @@
 import os
 import numpy as np
 from gensim.models import Word2Vec
-from gensim.models.keyedvectors import WordEmbeddingsKeyedVectors
-
-# import torch
-# from transformers import BertTokenizer, BertModel
 
 
 class TrainableModel:
@@ -13,7 +9,7 @@ class TrainableModel:
 
     def __init__(self, path_training_data, path_description):
 
-        # load training data and save as list of strings, each string representing a document
+        # load training data
         self._load_training_data(path_training_data)
 
         self.log = ""
@@ -68,22 +64,15 @@ class TrainableModel:
                 bootstrapped_train_data = list(np.random.choice(self.training_data, size=n_documents, replace=True))
 
                 # train the embedding
-                #emb = self.make_embedding(bootstrapped_train_data, hyperparameters)
-
-                # train a model
-                model = Word2Vec(bootstrapped_train_data, **hyperparameters)
-                # normalise the word vectors
-                model.wv.init_sims(replace=True)
-                # extract a keyed_vectors object
-                emb = model.wv
+                emb = self.make_embedding(bootstrapped_train_data, hyperparameters)
 
                 # save the embedding
-                output_path = output_path + "-" + str(m) + ".emb"
-                if os.path.isfile(output_path):
+                path = output_path + "-" + str(m) + ".emb"
+                if os.path.isfile(path):
                     raise ValueError(
                         "Embedding {} already exists. Choose a different name or delete existing model.".format(
-                            output_path))
-                emb.save(output_path)
+                            path))
+                emb.save(path)
 
     def make_embedding(self, train_data, hyperparameters):
         return NotImplemented
@@ -104,6 +93,7 @@ class Word2VecModel(TrainableModel):
             for line in f:
                 stripped_line = line.strip()
                 self.training_data.append(stripped_line.split())
+        print(self.training_data)
 
     def make_embedding(self, train_data, hyperparameters):
         """Train a Word2Vec model and extract the embedding."""
