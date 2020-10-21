@@ -802,7 +802,7 @@ class EmbeddingEnsemble:
                         for gw in dim_clusters[0]:
                             if not emb.in_vocab(gw):
                                 print("WARNING: Generating word {} not in vocab of embedding no {}; "
-                                      "this word will not be used to construct the {} dimension in this "
+                                      "this word will not be used to construct the dimension in this "
                                       "embedding.".format(gw, id))
                             else:
                                 left.append(gw)
