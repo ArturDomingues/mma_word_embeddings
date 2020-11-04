@@ -402,24 +402,24 @@ class WordEmbedding:
         proposed in https://www.aclweb.org/anthology/W14-1618.pdf"""
         return self._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
 
-    def projection(self, neutral_word, word_pair):
+    def projection(self, test_word, word_pair):
         """Compute the projection of a word to the normalized difference vector of the word pair.
 
         Read the output as follows: if result is negative, it is closer to the SECOND word, else to the FIRST.
 
         Args:
-            word (str): neutral word
+            test_word (str): neutral word
             word_pair (List[str]): list of (two) words defining the dimension
 
         Returns:
             float in [-1, 1]
         """
         diff = self.difference_vector(word_pair[0], word_pair[1], normalize=True)
-        vec = self.vector(neutral_word)
+        vec = self.vector(test_word)
         projection = np.dot(diff, vec)
         return projection
 
-    def projections(self, neutral_words, word_pairs):
+    def projections(self, test_words, word_pairs):
         """Compute projections of a word to difference vectors ("dimensions") spanned by multiple
         word pairs. Return result as a dataframe.
 
@@ -431,7 +431,7 @@ class WordEmbedding:
             DataFrame
         """
         result = []
-        for word in neutral_words:
+        for word in test_words:
             for word_pair in word_pairs:
                 projection = self.projection(word, word_pair)
                 result.append([word, word_pair[0] + " - " + word_pair[1], projection])
@@ -441,7 +441,7 @@ class WordEmbedding:
             result_dataframe['neutral_freq'] = [self.frequency_in_training_data(word) for word in result_dataframe['neutral']]
         return result_dataframe
 
-    def projections_to_bipolar_dimensions(self, neutral, generating_words):
+    def projections_to_bipolar_dimensions(self, test, dimensions):
         """ Compute the projections of neutral words onto bipolar dimensions. Each bipolar dimension is constructed from
         two clusters of words.
 
@@ -457,9 +457,9 @@ class WordEmbedding:
         * Computing the projection onto the centroid of differences between word pairs formed from the cluster.
 
          Args:
-            neutral (str or list[str]): neutral word like 'land' OR list of neutral
+            test (str or list[str]): neutral word like 'land' OR list of neutral
               words like ['land', 'nurse',...]
-            generating_words (dict): dictionary of lists of two clusters like
+            dimensions (dict): dictionary of lists of two clusters like
 
                     {'gender (male-female)': [['man', 'he',...], ['girl', 'her',...]],
                      'race (black-white)': [['black', ...], ['white', ...]],
@@ -468,10 +468,10 @@ class WordEmbedding:
         Returns:
             DataFrame
         """
-        if isinstance(neutral, str):
-            neutral_words = [neutral]
+        if isinstance(test, str):
+            neutral_words = [test]
         else:
-            neutral_words = neutral
+            neutral_words = test
 
         data = []
         for neutral_word in neutral_words:
@@ -479,7 +479,7 @@ class WordEmbedding:
             neutral_vec = self.vector(neutral_word)
             row = [neutral_word]
 
-            for dim_clusters in generating_words.values():
+            for dim_clusters in dimensions.values():
 
                 if len(dim_clusters) != 2:
                     raise ValueError("Generating words must be a list of exactly two lists that contain words.")
@@ -493,21 +493,21 @@ class WordEmbedding:
 
             data.append(row)
 
-        cols = ["neutral_word"] + list(generating_words)
+        cols = ["neutral_word"] + list(dimensions)
 
         df = pd.DataFrame(data, columns=cols)
         df = df.sort_values(cols[1:], axis=0, ascending=False)
         return df
 
-    def projections_to_unipolar_dimensions(self, neutral, generating_words):
+    def projections_to_unipolar_dimensions(self, test, dimensions):
         """Compute the projection of a neutral word onto unipolar dimensions.
 
            The unipolar dimension is the centroid of a cluster of words.
 
         Args:
-            neutral (str or list[str]): neutral word like 'land' OR list of neutral
+            test (str or list[str]): neutral word like 'land' OR list of neutral
                                         words like ['land', 'nurse',...]
-            generating_words (dict): dictionary of clusters like
+            dimensions (dict): dictionary of clusters like
 
                     {'male': ['man', 'he',...]
                      'female': ['him', 'her' ...],
@@ -516,10 +516,10 @@ class WordEmbedding:
         Returns:
             DataFrame
         """
-        if isinstance(neutral, str):
-            neutral_words = [neutral]
+        if isinstance(test, str):
+            neutral_words = [test]
         else:
-            neutral_words = neutral
+            neutral_words = test
 
         data = []
         for neutral_word in neutral_words:
@@ -527,7 +527,7 @@ class WordEmbedding:
             neutral_vec = self.vector(neutral_word)
             row = [neutral_word]
 
-            for dim_cluster in generating_words.values():
+            for dim_cluster in dimensions.values():
 
                 if len(np.array(dim_cluster).shape) != 1:
                     raise ValueError("Generating words must be a list of words.")
@@ -539,21 +539,21 @@ class WordEmbedding:
 
             data.append(row)
 
-        cols = ["neutral_word"] + list(generating_words)
+        cols = ["neutral_word"] + list(dimensions)
 
         df = pd.DataFrame(data, columns=cols)
         df = df.sort_values(cols[1:], axis=0, ascending=False)
         return df
 
-    def projections_to_principal_components(self, neutral, generating_words, n_components=3, n=5):
+    def projections_to_principal_components(self, test, dimensions, n_components=3, n=5):
         """Compute the projection of a neutral word onto the first n_components principal vectors.
 
         The n words closest to those principal vectors are printed to get a feeling for what these components mean.
 
         Args:
-            neutral (str or list[str]): neutral word like 'land' OR list of neutral
+            test (str or list[str]): neutral word like 'land' OR list of neutral
                                         words like ['land', 'nurse',...]
-            generating_words (dict): dictionary of clusters like
+            dimensions (dict): dictionary of clusters like
 
                     {'male': ['man', 'he',...]
                      'female': ['him', 'her' ...],
@@ -565,15 +565,15 @@ class WordEmbedding:
         Returns:
             DataFrame
         """
-        if isinstance(neutral, str):
-            neutral_words = [neutral]
+        if isinstance(test, str):
+            neutral_words = [test]
         else:
-            neutral_words = neutral
+            neutral_words = test
 
         # collect principal vectors
         principal_vecs = {}
         cols = ["neutral_word"]
-        for dim_name, dim_cluster in generating_words.items():
+        for dim_name, dim_cluster in dimensions.items():
 
             if len(np.array(dim_cluster).shape) != 1:
                 raise ValueError("Generating words must be a list of words.")
