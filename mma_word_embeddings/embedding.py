@@ -810,7 +810,7 @@ class EmbeddingEnsemble:
                 if len(dim_words) != 2 and not (isinstance(dim_words[0], list) and isinstance(dim_words[1], list)):
                     raise ValueError("Generating words must be a list of exactly two lists that contain words.")
 
-                results = []
+                results = [0.1, 0.2]
                 for idx in emb_idx:
                     emb = self.list_of_embeddings[idx]
                     test_vec = emb.vector(test_word)
@@ -871,13 +871,13 @@ class EmbeddingEnsemble:
 
             data.append(row)
 
-            # make correct col names
-            for dim in list(dimensions):
-                cols.extend([dim, dim + "(std)"])
+        # make correct col names
+        for dim in list(dimensions):
+            cols.extend([dim, dim + "(std)"])
 
-            df = pd.DataFrame(data, columns=cols)
-            df = df.sort_values(cols[1:], axis=0, ascending=False)
-            return df
+        df = pd.DataFrame(data, columns=cols)
+        df = df.sort_values(cols[1:], axis=0, ascending=False)
+        return df
 
     def projections_to_unipolar_dimensions(self, test, dimensions):
         """Same as the embedding method with the same name, but produces an average of the projections of each ensemble.
