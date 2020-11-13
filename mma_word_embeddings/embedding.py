@@ -778,6 +778,65 @@ class EmbeddingEnsemble:
         else:
             test_words = test
 
+        # make dimension for each embedding, with only words found in its vocab ===========
+        processed_dims = {}
+        for dim_name, dim_words in dimensions.items():
+
+            if len(dim_words) != 2 and not (isinstance(dim_words[0], list) and isinstance(dim_words[1], list)):
+                raise ValueError("Generating words must be a list of exactly two lists that contain words.")
+
+            processed_dims[dim_name] = {}
+
+            for idx, emb in enumerate(self.list_of_embeddings):
+
+                # LEFT ======================
+                # check which dim words cannot be used in this embedding
+                left_dim_words_in_emb = []
+                left_dim_words_not_in_emb = []
+                for dim_word in dim_words[0]:
+                    if emb.in_vocab(dim_word):
+                        left_dim_words_in_emb.append(dim_word)
+                    else:
+                        left_dim_words_not_in_emb.append(dim_word)
+
+                if not left_dim_words_in_emb:
+                    print(
+                        "INFO: None of the left generating words to construct dimension {} found in embedding no {};"
+                        "this embedding is not used to compute the ensemble projection for "
+                        "this dimension.".format(dim_name, idx))
+                    continue
+
+                if left_dim_words_not_in_emb:
+                    print("INFO: Left generating word(s) {} not found in vocab of embedding no {}; "
+                          "word(s) will not be used to construct the dimension in this "
+                          "embedding.".format(left_dim_words_not_in_emb, idx))
+
+                # RIGHT ======================
+                # check which dim words cannot be used in this embedding
+                right_dim_words_in_emb = []
+                right_dim_words_not_in_emb = []
+                for dim_word in dim_words[1]:
+                    if emb.in_vocab(dim_word):
+                        right_dim_words_in_emb.append(dim_word)
+                    else:
+                        right_dim_words_not_in_emb.append(dim_word)
+
+                if not right_dim_words_in_emb:
+                    print(
+                        "INFO: None of the right generating words to construct dimension {} found in embedding no {};"
+                        "this embedding is not used to compute the ensemble projection for "
+                        "this dimension.".format(dim_name, idx))
+                    continue
+
+                if right_dim_words_not_in_emb:
+                    print("INFO: Right generating word(s) {} not found in vocab of embedding no {}; "
+                          "word(s) will not be used to construct the dimension in this "
+                          "embedding.".format(right_dim_words_not_in_emb, idx))
+
+                processed_dims[dim_name][idx] = [left_dim_words_in_emb, right_dim_words_in_emb]
+
+        # ===============
+
         data = []
         for test_word in test_words:
 
@@ -805,67 +864,20 @@ class EmbeddingEnsemble:
 
             # =========================================
 
-            for dim_name, dim_words in dimensions.items():
+            for dim_name, dim_dict in dimensions.items():
 
-                if len(dim_words) != 2 and not (isinstance(dim_words[0], list) and isinstance(dim_words[1], list)):
-                    raise ValueError("Generating words must be a list of exactly two lists that contain words.")
-
-                results = [0.1, 0.2]
+                results = []
                 for idx in emb_idx:
-                    emb = self.list_of_embeddings[idx]
-                    test_vec = emb.vector(test_word)
+                    if idx in processed_dims[dim_name]:
 
-                    # LEFT ======================
-                    # check which dim words cannot be used in this embedding
-                    left_dim_words_in_emb = []
-                    left_dim_words_not_in_emb = []
-                    for dim_word in dim_words[0]:
-                        if emb.in_vocab(dim_word):
-                            left_dim_words_in_emb.append(dim_word)
-                        else:
-                            left_dim_words_not_in_emb.append(dim_word)
-
-                    if not left_dim_words_in_emb:
-                        print("INFO: None of the left generating words to construct dimension {} found in embedding no {};"
-                              "this embedding is not used to compute the ensemble projection for "
-                              "this dimension.".format(dim_name, idx))
-                        continue
-
-                    if left_dim_words_not_in_emb:
-                        print("INFO: Left generating word(s) {} not found in vocab of embedding no {}; "
-                              "word(s) will not be used to construct the dimension in this "
-                              "embedding.".format(left_dim_words_not_in_emb, idx))
-
-                    centroid_left = emb.centroid_of_vectors(left_dim_words_in_emb)
-
-                    # RIGHT ======================
-                    # check which dim words cannot be used in this embedding
-                    right_dim_words_in_emb = []
-                    right_dim_words_not_in_emb = []
-                    for dim_word in dim_words[1]:
-                        if emb.in_vocab(dim_word):
-                            right_dim_words_in_emb.append(dim_word)
-                        else:
-                            right_dim_words_not_in_emb.append(dim_word)
-
-                    if not right_dim_words_in_emb:
-                        print(
-                            "INFO: None of the right generating words to construct dimension {} found in embedding no {};"
-                            "this embedding is not used to compute the ensemble projection for "
-                            "this dimension.".format(dim_name, idx))
-                        continue
-
-                    if right_dim_words_not_in_emb:
-                        print("INFO: Right generating word(s) {} not found in vocab of embedding no {}; "
-                              "word(s) will not be used to construct the dimension in this "
-                              "embedding.".format(right_dim_words_not_in_emb, idx))
-
-                    centroid_right = emb.centroid_of_vectors(right_dim_words_in_emb)
-
-                    diff = centroid_left - centroid_right
-                    diff = normalize_vector(diff)
-                    res = np.dot(test_vec, diff)
-                    results.append(res)
+                        emb = self.list_of_embeddings[idx]
+                        test_vec = emb.vector(test_word)
+                        centroid_left = emb.centroid_of_vectors(processed_dims[dim_name][idx][0])
+                        centroid_right = emb.centroid_of_vectors(processed_dims[dim_name][idx][1])
+                        diff = centroid_left - centroid_right
+                        diff = normalize_vector(diff)
+                        res = np.dot(test_vec, diff)
+                        results.append(res)
 
                 row.extend([np.mean(results), np.std(results)])
 
@@ -887,6 +899,43 @@ class EmbeddingEnsemble:
         else:
             test_words = test
 
+        # make dimension for each embedding, with only words found in its vocab ===========
+        processed_dims = {}
+        for dim_name, dim_words in dimensions.items():
+
+            if len(np.array(dim_words).shape) != 1:
+                raise ValueError("Generating words must be a list of words.")
+
+            processed_dims[dim_name] = {}
+
+            for idx, emb in enumerate(self.list_of_embeddings):
+
+                # check which dim words cannot be used in this embedding
+                dim_words_in_emb = []
+                dim_words_not_in_emb = []
+                for dim_word in dim_words[0]:
+                    if emb.in_vocab(dim_word):
+                        dim_words_in_emb.append(dim_word)
+                    else:
+                        dim_words_not_in_emb.append(dim_word)
+
+                if not dim_words_in_emb:
+                    print(
+                        "INFO: None of the generating words to construct dimension {} found in embedding no {};"
+                        "this embedding is not used to compute the ensemble projection for "
+                        "this dimension.".format(dim_name, idx))
+                    continue
+
+                if dim_words_not_in_emb:
+                    print("INFO: Generating word(s) {} not found in vocab of embedding no {}; "
+                          "word(s) will not be used to construct the dimension in this "
+                          "embedding.".format(dim_words_not_in_emb, idx))
+
+
+                processed_dims[dim_name][idx] = dim_words_in_emb
+
+        # ===============
+
         data = []
         for test_word in test_words:
 
@@ -914,40 +963,18 @@ class EmbeddingEnsemble:
 
             # =========================================
 
-            for dim_name, dim_words in dimensions.items():
-
-                if len(np.array(dim_words).shape) != 1:
-                    raise ValueError("Generating words must be a list of words.")
+            for dim_name, dim_dict in processed_dims.items():
 
                 results = []
                 for idx in emb_idx:
-                    emb = self.list_of_embeddings[idx]
-                    test_vec = emb.vector(test_word)
+                    if idx in processed_dims[dim_name]:
 
-                    # check which dim words cannot be used in this embedding
-                    dim_words_in_emb = []
-                    dim_words_not_in_emb = []
-                    for dim_word in dim_words:
-                        if emb.in_vocab(dim_word):
-                            dim_words_in_emb.append(dim_word)
-                        else:
-                            dim_words_not_in_emb.append(dim_word)
-
-                    if not dim_words_in_emb:
-                        print("INFO: None of the generating words to construct dimension {} found in embedding no {};"
-                              "this embedding is not used to compute the ensemble projection for "
-                              "this dimension.".format(dim_name, idx))
-                        continue
-
-                    if dim_words_not_in_emb:
-                        print("INFO: Generating word(s) {} not found in vocab of embedding no {}; "
-                              "word(s) will not be used to construct the dimension in this "
-                              "embedding.".format(dim_words_not_in_emb, idx))
-
-                    centroid = emb.centroid_of_vectors(dim_words_in_emb)
-                    centroid = normalize_vector(centroid)
-                    res = np.dot(test_vec, centroid)
-                    results.append(res)
+                        emb = self.list_of_embeddings[idx]
+                        test_vec = emb.vector(test_word)
+                        centroid = emb.centroid_of_vectors(processed_dims[dim_name][idx])
+                        centroid = normalize_vector(centroid)
+                        res = np.dot(test_vec, centroid)
+                        results.append(res)
 
                 row.extend([np.mean(results), np.std(results)])
 
