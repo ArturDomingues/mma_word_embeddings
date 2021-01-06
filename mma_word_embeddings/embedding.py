@@ -2,7 +2,7 @@
 from gensim.models import KeyedVectors
 from mma_word_embeddings.utils import normalize_vector, make_pairs, kl_divergence, mmd2
 import numpy as np
-from itertools import combinations_with_replacement
+from itertools import combinations_with_replacement, combinations, product
 import pandas as pd
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
@@ -11,12 +11,15 @@ from sklearn.manifold import TSNE
 from collections import Counter
 from random import sample
 import glob
+import seaborn as sns
+import networkx as nx
+
 
 # Make pandas print full data frame
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', None)
-pd.set_option('display.max_colwidth', -1)
+pd.set_option('display.max_colwidth', None)
 pd.options.display.float_format = '{:,.4f}'.format
 
 COLORMAP = mcolors.LinearSegmentedColormap.from_list("MyCmapName", ["r", "w", "g"])
@@ -277,7 +280,7 @@ class WordEmbedding:
             list_of_words (list[str]): list of words
             n_components (int): number of components
         Returns:
-            DataFrame
+            list of arrays
         """
 
         X = [self.vector(word) for word in list_of_words]
@@ -617,6 +620,27 @@ class WordEmbedding:
 
         else:
             raise ValueError("Method {} not recognised.".format(method))
+
+    def plot_diversity(self, list_of_words, bandwidth=0.1):
+        """Plot density of the mutual similarities of all words. """
+        similarities = []
+        for word1, word2 in combinations(list_of_words, 2):
+            similarities.append(self.similarity(word1, word2))
+
+        sns.kdeplot(np.array(similarities), bw_method=bandwidth)
+
+    def plot_graph(self, list_of_words):
+        """Plot a network where edge length shows the similarity between words"""
+        covariance = [self.similarity(word1, word2) for word1, word2 in product(list_of_words, repeat=2)]
+        covariance = np.array(covariance).reshape(len(list_of_words), len(list_of_words))
+        graph = nx.from_numpy_array(covariance)
+        mapping = {i: word for i, word in enumerate(list_of_words)}
+        graph = nx.relabel_nodes(graph, mapping)
+        print(graph.nodes, graph.edges(data=True))
+        nx.draw_networkx(graph)
+        plt.show()
+
+
 
     def plot_pca(self, list_of_words, n_comp=2):
         """Plot the words in list_of_words in a PCA plot.

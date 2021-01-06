@@ -1,6 +1,8 @@
 # Helper functions for working with word trained_embeddings
 import numpy as np
 import matplotlib.colors as mcolors
+
+
 COLORMAP = mcolors.LinearSegmentedColormap.from_list("MyCmapName",["r", "w", "g"])
 
 
@@ -83,3 +85,6 @@ def remove_if_not_in_vocab(vocab, list_of_words):
     cleaned_list = [word for word in list_of_words if word not in not_in_vocab]
     print("Removed the following words:", not_in_vocab)
     return cleaned_list
+
+
+
