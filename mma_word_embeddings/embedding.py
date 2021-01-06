@@ -636,10 +636,7 @@ class WordEmbedding:
         graph = nx.from_numpy_array(covariance)
         mapping = {i: word for i, word in enumerate(list_of_words)}
         graph = nx.relabel_nodes(graph, mapping)
-        print(graph.nodes, graph.edges(data=True))
         nx.draw_networkx(graph)
-        plt.show()
-
 
 
     def plot_pca(self, list_of_words, n_comp=2):
