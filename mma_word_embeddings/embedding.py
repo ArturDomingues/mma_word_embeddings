@@ -628,6 +628,7 @@ class WordEmbedding:
             similarities.append(self.similarity(word1, word2))
 
         sns.kdeplot(np.array(similarities), bw_method=bandwidth)
+        plt.xlim(-1, 1)
 
     def plot_graph(self, list_of_words):
         """Plot a network where edge length shows the similarity between words"""
