@@ -792,7 +792,7 @@ class EmbeddingEnsemble:
             base_df['Word2_freq'] = [self.frequency_in_training_data(word) for word in base_df['Word2']]
         return base_df
 
-    def projections_to_bipolar_dimensions(self, test, dimensions):
+    def projections_to_bipolar_dimensions(self, test, dimensions, normalize_before=True):
         """ Same as the embedding method with the same name, but produces an average of the projections of each ensemble.
         """
         if isinstance(test, str):
@@ -897,7 +897,10 @@ class EmbeddingEnsemble:
                         centroid_left = emb.centroid_of_vectors(processed_dims[dim_name][idx][0])
                         centroid_right = emb.centroid_of_vectors(processed_dims[dim_name][idx][1])
                         diff = centroid_left - centroid_right
-                        diff = normalize_vector(diff)
+
+                        if normalize_before:
+                            diff = normalize_vector(diff)
+                            
                         res = np.dot(test_vec, diff)
                         results.append(res)
 
@@ -913,7 +916,7 @@ class EmbeddingEnsemble:
         df = df.sort_values(cols[1:], axis=0, ascending=False)
         return df
 
-    def projections_to_unipolar_dimensions(self, test, dimensions):
+    def projections_to_unipolar_dimensions(self, test, dimensions, normalize_before=True):
         """Same as the embedding method with the same name, but produces an average of the projections of each ensemble.
         """
         if isinstance(test, str):
@@ -994,7 +997,9 @@ class EmbeddingEnsemble:
                         emb = self.list_of_embeddings[idx]
                         test_vec = emb.vector(test_word)
                         centroid = emb.centroid_of_vectors(processed_dims[dim_name][idx])
-                        centroid = normalize_vector(centroid)
+
+                        if normalize_before:
+                            centroid = normalize_vector(centroid)
                         res = np.dot(test_vec, centroid)
                         results.append(res)
 
