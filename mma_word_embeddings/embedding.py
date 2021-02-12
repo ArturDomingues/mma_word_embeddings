@@ -444,7 +444,7 @@ class WordEmbedding:
             result_dataframe['test_freq'] = [self.frequency_in_training_data(word) for word in result_dataframe['test']]
         return result_dataframe
 
-    def projections_to_bipolar_dimensions(self, test, dimensions):
+    def projections_to_bipolar_dimensions(self, test, dimensions, normalize_before=True):
         """ Compute the projections of test words onto bipolar dimensions. Each bipolar dimension is constructed from
         two clusters of words.
 
@@ -490,7 +490,8 @@ class WordEmbedding:
                 centroid_left_cluster = self.centroid_of_vectors(dim_clusters[0])
                 centroid_right_cluster = self.centroid_of_vectors(dim_clusters[1])
                 diff = centroid_left_cluster - centroid_right_cluster
-                diff = normalize_vector(diff)
+                if normalize_before:
+                    diff = normalize_vector(diff)
                 res = np.dot(test_vec, diff)
                 row.append(res)
 
@@ -502,7 +503,7 @@ class WordEmbedding:
         df = df.sort_values(cols[1:], axis=0, ascending=False)
         return df
 
-    def projections_to_unipolar_dimensions(self, test, dimensions):
+    def projections_to_unipolar_dimensions(self, test, dimensions, normalize_before=True):
         """Compute the projection of a test word onto unipolar dimensions.
 
            The unipolar dimension is the centroid of a cluster of words.
@@ -536,7 +537,8 @@ class WordEmbedding:
                     raise ValueError("Generating words must be a list of words.")
 
                 centroid = self.centroid_of_vectors(dim_cluster)
-                centroid = normalize_vector(centroid)
+                if normalize_before:
+                    centroid = normalize_vector(centroid)
                 res = np.dot(test_vec, centroid)
                 row.append(res)
 
@@ -638,7 +640,6 @@ class WordEmbedding:
         mapping = {i: word for i, word in enumerate(list_of_words)}
         graph = nx.relabel_nodes(graph, mapping)
         nx.draw_networkx(graph, edge_color='silver')
-
 
     def plot_pca(self, list_of_words, n_comp=2):
         """Plot the words in list_of_words in a PCA plot.
@@ -900,7 +901,7 @@ class EmbeddingEnsemble:
 
                         if normalize_before:
                             diff = normalize_vector(diff)
-                            
+
                         res = np.dot(test_vec, diff)
                         results.append(res)
 
