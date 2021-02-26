@@ -444,7 +444,7 @@ class WordEmbedding:
             result_dataframe['test_freq'] = [self.frequency_in_training_data(word) for word in result_dataframe['test']]
         return result_dataframe
 
-    def projections_to_bipolar_dimensions(self, test, dimensions, normalize_before=True):
+    def projections_to_bipolar_dimensions(self, test, dimensions, normalize_before=False, normalize_centroids=True):
         """ Compute the projections of test words onto bipolar dimensions. Each bipolar dimension is constructed from
         two clusters of words.
 
@@ -489,6 +489,11 @@ class WordEmbedding:
 
                 centroid_left_cluster = self.centroid_of_vectors(dim_clusters[0])
                 centroid_right_cluster = self.centroid_of_vectors(dim_clusters[1])
+                
+                if normalize_centroids:
+                    centroid_left_cluster = np.linalg.norm(centroid_left_cluster)
+                    centroid_right_cluster = np.linalg.norm(centroid_right_cluster)
+                    
                 diff = centroid_left_cluster - centroid_right_cluster
                 if normalize_before:
                     diff = normalize_vector(diff)
