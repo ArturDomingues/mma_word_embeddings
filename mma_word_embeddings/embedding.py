@@ -491,8 +491,8 @@ class WordEmbedding:
                 centroid_right_cluster = self.centroid_of_vectors(dim_clusters[1])
                 
                 if normalize_centroids:
-                    centroid_left_cluster = np.linalg.norm(centroid_left_cluster)
-                    centroid_right_cluster = np.linalg.norm(centroid_right_cluster)
+                    centroid_left_cluster = centroid_left_cluster/np.linalg.norm(centroid_left_cluster)
+                    centroid_right_cluster = centroid_right_cluster/np.linalg.norm(centroid_right_cluster)
                     
                 diff = centroid_left_cluster - centroid_right_cluster
                 if normalize_before:
