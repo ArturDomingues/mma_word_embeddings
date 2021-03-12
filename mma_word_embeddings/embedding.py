@@ -13,6 +13,7 @@ from random import sample
 import glob
 import seaborn as sns
 import networkx as nx
+import matplotlib.cm as cm
 
 
 # Make pandas print full data frame
@@ -646,18 +647,26 @@ class WordEmbedding:
         graph = nx.relabel_nodes(graph, mapping)
         nx.draw_networkx(graph, edge_color='lightgray', node_size=10, node_color='silver')
 
-    def plot_distance_matrix(self, list_of_words, size=5):
+    def plot_distance_matrix(self, list_of_words, size=5, nonlinear=False, scaling=2, normalize=False, min=-1):
         """Plot a matrix where each value shows the similarity between words"""
-        covariance = [self.similarity(word1, word2) for word1, word2 in product(list_of_words, repeat=2)]
-        covariance = np.array(covariance).reshape(len(list_of_words), len(list_of_words))
+        if nonlinear:
+            covariance_list = [np.tanh(scaling*self.similarity(word1, word2)) for word1, word2 in product(list_of_words, repeat=2)]
+        else:
+            covariance_list = [self.similarity(word1, word2) for word1, word2 in product(list_of_words, repeat=2)]
 
-        fig = plt.figure(figsize=(size, size))
-        ax = fig.add_subplot(111)
-        ax.imshow(covariance)
-        ax.set_aspect('equal')
+        covariance = np.array(covariance_list).reshape(len(list_of_words), len(list_of_words))
+
+        plt.figure(figsize=(size, size))
+        if normalize:
+            plt.imshow(covariance, aspect='equal', cmap='BrBG', vmin=min(covariance_list), vmax=max(covariance_list))
+        else:
+            plt.imshow(covariance, aspect='equal', cmap='BrBG', vmin=min, vmax=1)
+
         plt.yticks(ticks=range(len(list_of_words)), labels=list_of_words)
         plt.xticks(ticks=range(len(list_of_words)), labels=list_of_words, rotation=90)
+        plt.colorbar()
         plt.tight_layout()
+
 
     def plot_pca(self, list_of_words, n_comp=2):
         """Plot the words in list_of_words in a PCA plot.
