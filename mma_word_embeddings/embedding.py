@@ -659,6 +659,7 @@ class WordEmbedding:
         ymin = padding * min(yy for xx, yy in pos.values())
         plt.xlim(xmin, xmax)
         plt.ylim(ymin, ymax)
+        plt.box(False)
         plt.tight_layout()
 
     def plot_distance_matrix(self, list_of_words, size=5, nonlinear=False, scaling=2, normalize=False, min=-1):
