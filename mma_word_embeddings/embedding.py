@@ -638,14 +638,28 @@ class WordEmbedding:
         sns.kdeplot(np.array(similarities), bw_method=bandwidth)
         plt.xlim(-1, 1)
 
-    def plot_distance_graph(self, list_of_words):
+    def plot_distance_graph(self, list_of_words, nonlinear=False, scaling=2, padding=1.2):
         """Plot a network where edge length shows the similarity between words"""
-        covariance = [self.similarity(word1, word2) for word1, word2 in product(list_of_words, repeat=2)]
-        covariance = np.array(covariance).reshape(len(list_of_words), len(list_of_words))
+        if nonlinear:
+            covariance_list = [np.tanh(scaling*self.similarity(word1, word2)) for word1, word2 in product(list_of_words, repeat=2)]
+        else:
+            covariance_list = [self.similarity(word1, word2) for word1, word2 in product(list_of_words, repeat=2)]
+        covariance = np.array(covariance_list).reshape(len(list_of_words), len(list_of_words))
         graph = nx.from_numpy_array(covariance)
         mapping = {i: word for i, word in enumerate(list_of_words)}
         graph = nx.relabel_nodes(graph, mapping)
-        nx.draw_networkx(graph, edge_color='lightgray', node_size=10, node_color='silver')
+        pos = nx.kamada_kawai_layout(graph, scale=0.2)
+        nx.draw_networkx_nodes(graph, pos,node_size=15, node_color='lightgray')
+        nx.draw_networkx_edges(graph, pos,  edge_color='lightgray')
+        y_off = 0.01
+        nx.draw_networkx_labels(graph, pos={k: ([v[0], v[1] + y_off]) for k, v in pos.items()})
+        xmax = padding * max(xx for xx, yy in pos.values())
+        ymax = padding * max(yy for xx, yy in pos.values())
+        xmin = padding * min(xx for xx, yy in pos.values())
+        ymin = padding * min(yy for xx, yy in pos.values())
+        plt.xlim(xmin, xmax)
+        plt.ylim(ymin, ymax)
+        plt.tight_layout()
 
     def plot_distance_matrix(self, list_of_words, size=5, nonlinear=False, scaling=2, normalize=False, min=-1):
         """Plot a matrix where each value shows the similarity between words"""
