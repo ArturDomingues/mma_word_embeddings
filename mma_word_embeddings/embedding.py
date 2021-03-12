@@ -637,14 +637,27 @@ class WordEmbedding:
         sns.kdeplot(np.array(similarities), bw_method=bandwidth)
         plt.xlim(-1, 1)
 
-    def plot_graph(self, list_of_words):
+    def plot_distance_graph(self, list_of_words):
         """Plot a network where edge length shows the similarity between words"""
         covariance = [self.similarity(word1, word2) for word1, word2 in product(list_of_words, repeat=2)]
         covariance = np.array(covariance).reshape(len(list_of_words), len(list_of_words))
         graph = nx.from_numpy_array(covariance)
         mapping = {i: word for i, word in enumerate(list_of_words)}
         graph = nx.relabel_nodes(graph, mapping)
-        nx.draw_networkx(graph, edge_color='silver')
+        nx.draw_networkx(graph, edge_color='lightgray', node_size=10, node_color='silver')
+
+    def plot_distance_matrix(self, list_of_words, size=5):
+        """Plot a matrix where each value shows the similarity between words"""
+        covariance = [self.similarity(word1, word2) for word1, word2 in product(list_of_words, repeat=2)]
+        covariance = np.array(covariance).reshape(len(list_of_words), len(list_of_words))
+
+        fig = plt.figure(figsize=(size, size))
+        ax = fig.add_subplot(111)
+        ax.imshow(covariance)
+        ax.set_aspect('equal')
+        plt.yticks(ticks=range(len(list_of_words)), labels=list_of_words)
+        plt.xticks(ticks=range(len(list_of_words)), labels=list_of_words, rotation=90)
+        plt.tight_layout()
 
     def plot_pca(self, list_of_words, n_comp=2):
         """Plot the words in list_of_words in a PCA plot.
