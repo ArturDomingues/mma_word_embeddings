@@ -648,7 +648,7 @@ class WordEmbedding:
         graph = nx.from_numpy_array(covariance)
         mapping = {i: word for i, word in enumerate(list_of_words)}
         graph = nx.relabel_nodes(graph, mapping)
-        pos = nx.kamada_kawai_layout(graph, scale=0.2)
+        pos = nx.spring_layout(graph, scale=0.2)
         nx.draw_networkx_nodes(graph, pos,node_size=15, node_color='lightgray')
         nx.draw_networkx_edges(graph, pos,  edge_color='lightgray')
         y_off = 0.01
