@@ -7,10 +7,15 @@ from gensim.models import Word2Vec
 class TrainableModel:
     """Train a word embedding using a Word2Vec model."""
 
-    def __init__(self, path_training_data, path_description):
+    def __init__(self, path_training_data, path_description, path_pretraining_data=None):
 
         # load training data
-        self._load_training_data(path_training_data)
+        self.training_data = self._load_data(path_training_data)
+
+        if path_pretraining_data is not None:
+            self.pre_training_data = self._load_data(path_pretraining_data)
+        else:
+            self.pre_training_data = None
 
         self.log = ""
         # Save the description in the log,
@@ -24,7 +29,8 @@ class TrainableModel:
               hyperparameters,
               n_models=None,
               share_of_original_data=1.,
-              seed=None):
+              seed=None,
+              ):
         """Trains a single embedding or an ensemble of embeddings."""
 
         if seed is not None:
@@ -43,7 +49,7 @@ class TrainableModel:
 
         if n_models is None:
             # train embedding on full data
-            emb = self.make_embedding(self.training_data, hyperparameters)
+            emb = self.make_embedding(self.training_data, hyperparameters, self.pre_training_data)
 
             # save embedding
             output_path = output_path + ".emb"
@@ -74,32 +80,37 @@ class TrainableModel:
                             path))
                 emb.save(path)
 
-    def make_embedding(self, train_data, hyperparameters):
+    def make_embedding(self, train_data, pre_train_data, hyperparameters):
         return NotImplemented
 
-    def _load_training_data(self, path):
+    def _load_data(self, path):
         return NotImplemented
 
 
 class Word2VecModel(TrainableModel):
     """Train a word embedding using a Word2Vec model."""
 
-    def __init__(self, path_training_data, path_description):
-        super().__init__(path_training_data, path_description)
+    def __init__(self, path_training_data, path_description, path_pretraining_data=None):
+        super().__init__(path_training_data, path_description, path_pretraining_data=path_pretraining_data)
 
-    def _load_training_data(self, path):
-        self.training_data = []
+    def _load_data(self, path):
+        data = []
         with open(path, "r") as f:
             for line in f:
                 stripped_line = line.strip()
-                self.training_data.append(stripped_line.split())
-        print(self.training_data)
+                data.append(stripped_line.split())
+        return data
 
-    def make_embedding(self, train_data, hyperparameters):
+    def make_embedding(self, train_data, pre_train_data, hyperparameters):
         """Train a Word2Vec model and extract the embedding."""
 
-        # train a model
-        model = Word2Vec(train_data, **hyperparameters)
+        if pre_train_data is None:
+            model = Word2Vec(train_data, **hyperparameters)
+
+        else:
+            model = Word2Vec(pre_train_data, **hyperparameters)
+            model.train(train_data, total_examples=len(train_data), epochs=model.epochs)
+
         # normalise the word vectors
         model.wv.init_sims(replace=True)
         # extract a keyed_vectors object
