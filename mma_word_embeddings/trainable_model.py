@@ -49,7 +49,7 @@ class TrainableModel:
 
         if n_models is None:
             # train embedding on full data
-            emb = self.make_embedding(self.training_data, hyperparameters, self.pre_training_data)
+            emb = self.make_embedding(self.training_data, self.pre_training_data, hyperparameters)
 
             # save embedding
             output_path = output_path + ".emb"
@@ -70,7 +70,7 @@ class TrainableModel:
                 bootstrapped_train_data = list(np.random.choice(self.training_data, size=n_documents, replace=True))
 
                 # train the embedding
-                emb = self.make_embedding(bootstrapped_train_data, hyperparameters)
+                emb = self.make_embedding(bootstrapped_train_data, self.pre_training_data, hyperparameters)
 
                 # save the embedding
                 path = output_path + "-" + str(m) + ".emb"
