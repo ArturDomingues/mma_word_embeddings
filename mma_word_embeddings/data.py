@@ -94,7 +94,7 @@ class DexterData:
         plt.show()
 
     def get_training_data(self, text_column, min_count_ngrams=50, threshold_ngrams=10,
-                          remove_stopwords=False, lemmatize=False):
+                          remove_stopwords=False, lemmatize=False, make_ngrams=True):
         """Get a representation of the data that can be used to train a word2vec model.
 
         Args:
@@ -105,6 +105,7 @@ class DexterData:
                 Heavily depends on concrete scoring-function, see the scoring parameter.
             remove_stopwords (bool): If true, remove standard stop words from training data.
             lemmatize (bool): If true, replace words by their stems
+            make_ngrams (bool): If true, make bi and trigrams
         """
 
         print("Process data...")
@@ -169,17 +170,18 @@ class DexterData:
         # SECOND STEP: make N-Grams #########################
         print("...make bigrams and trigrams...")
 
-        # save description
-        self.description += "...turn common word sequences into bigrams or trigrams using gensim " \
-                            "(min_count {} and threshold {})".format(min_count_ngrams, threshold_ngrams)
+        if make_ngrams:
+            # save description
+            self.description += "...turn common word sequences into bigrams or trigrams using gensim " \
+                                "(min_count {} and threshold {})".format(min_count_ngrams, threshold_ngrams)
 
-        bigram = gensim.models.Phrases(cleaned_data, min_count=min_count_ngrams, threshold=threshold_ngrams)
-        trigram = gensim.models.Phrases(bigram[cleaned_data], min_count=min_count_ngrams, threshold=threshold_ngrams)
+            bigram = gensim.models.Phrases(cleaned_data, min_count=min_count_ngrams, threshold=threshold_ngrams)
+            trigram = gensim.models.Phrases(bigram[cleaned_data], min_count=min_count_ngrams, threshold=threshold_ngrams)
 
-        bigram_mod = gensim.models.phrases.Phraser(bigram)
-        trigram_mod = gensim.models.phrases.Phraser(trigram)
+            bigram_mod = gensim.models.phrases.Phraser(bigram)
+            trigram_mod = gensim.models.phrases.Phraser(trigram)
 
-        cleaned_data = [trigram_mod[bigram_mod[document]] for document in cleaned_data]
+            cleaned_data = [trigram_mod[bigram_mod[document]] for document in cleaned_data]
 
         print("...done.")
 
