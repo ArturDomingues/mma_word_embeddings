@@ -13,7 +13,7 @@ from random import sample
 import glob
 import seaborn as sns
 import networkx as nx
-import matplotlib.cm as cm
+import scipy.cluster.hierarchy as sch
 
 
 # Make pandas print full data frame
@@ -662,16 +662,32 @@ class WordEmbedding:
         plt.box(False)
         plt.tight_layout()
 
-    def plot_distance_matrix(self, list_of_words, size=5, nonlinear=False, scaling=2, normalize=False, min=-1):
+    def plot_distance_matrix(self, list_of_words, cluster=True, figsize=5, nonlinear=False, nl_scaling=2,
+                             normalize=False, min=-1):
         """Plot a matrix where each value shows the similarity between words"""
         if nonlinear:
-            covariance_list = [np.tanh(scaling*self.similarity(word1, word2)) for word1, word2 in product(list_of_words, repeat=2)]
+            covariance_list = [np.tanh(nl_scaling*self.similarity(word1, word2))
+                               for word1, word2 in product(list_of_words, repeat=2)]
         else:
             covariance_list = [self.similarity(word1, word2) for word1, word2 in product(list_of_words, repeat=2)]
 
         covariance = np.array(covariance_list).reshape(len(list_of_words), len(list_of_words))
 
-        plt.figure(figsize=(size, size))
+        if cluster:
+            # hierarchical clustering
+            d = sch.distance.pdist(covariance)
+            L = sch.linkage(d, method='complete')
+            ind = sch.fcluster(L, 0.5 * d.max(), 'distance')
+            new_indices = [i for i in list((np.argsort(ind)))]
+
+            # reorder columns
+            temp = covariance[:, new_indices]
+            # reorder rows
+            covariance = temp[new_indices]
+
+            list_of_words = [list_of_words[i] for i in new_indices]
+
+        plt.figure(figsize=(figsize, figsize))
         if normalize:
             plt.imshow(covariance, aspect='equal', cmap='BrBG', vmin=min(covariance_list), vmax=max(covariance_list))
         else:
@@ -681,7 +697,6 @@ class WordEmbedding:
         plt.xticks(ticks=range(len(list_of_words)), labels=list_of_words, rotation=90)
         plt.colorbar()
         plt.tight_layout()
-
 
     def plot_pca(self, list_of_words, n_comp=2):
         """Plot the words in list_of_words in a PCA plot.
