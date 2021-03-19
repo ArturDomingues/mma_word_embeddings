@@ -10,6 +10,7 @@ import string
 from bs4 import BeautifulSoup
 import re
 from itertools import groupby
+import zipfile
 
 
 nltk.download('stopwords')
@@ -18,7 +19,7 @@ stop = stopwords.words('english')
 
 CUSTOM_STOPWORDS = []
 STOPWORD_EXCEPTIONS = ['he', 'she', 'him', 'her', 'his', 'hers']
-PUNCTUATION = string.punctuation + "“”’‘‚…"  # add some symbols that have different ascii
+PUNCTUATION = string.punctuation.replace("_", "") + "“”’‘‚…"  # add some symbols that have different ascii
 GARBAGE = ['windowtextcolor', ]
 
 
@@ -31,6 +32,11 @@ class DexterData:
         """
 
         print("Loading data...")
+
+        if path_to_data[-3:] == ".zip":
+            with zipfile.ZipFile(path_to_data, 'r') as zip_ref:
+                zip_ref.extractall(directory_to_extract_to)
+
         with open(path_to_data, 'r', encoding='utf8') as f:
             data = json.load(f)
         print("...done.")
