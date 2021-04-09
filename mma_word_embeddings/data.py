@@ -9,9 +9,9 @@ import gensim
 import string
 from bs4 import BeautifulSoup
 import re
-from itertools import groupby
-import zipfile
-
+import sys
+import os
+from gensim.models.phrases import Phrases, ENGLISH_CONNECTOR_WORDS
 
 nltk.download('stopwords')
 nltk.download('wordnet')
@@ -19,7 +19,7 @@ stop = stopwords.words('english')
 
 CUSTOM_STOPWORDS = []
 STOPWORD_EXCEPTIONS = ['he', 'she', 'him', 'her', 'his', 'hers']
-PUNCTUATION = string.punctuation.replace("_", "") + "“”’‘‚…"  # add some symbols that have different ascii
+PUNCTUATION = string.punctuation.replace("_", "") + "“”’‘‚…–"  # add some symbols that have different ascii
 GARBAGE = ['windowtextcolor', ]
 
 
@@ -33,17 +33,11 @@ class DexterData:
 
         print("Loading data...")
 
-        if path_to_data[-3:] == ".zip":
-            with zipfile.ZipFile(path_to_data, 'r') as zip_ref:
-                zip_ref.extractall(directory_to_extract_to)
-
         with open(path_to_data, 'r', encoding='utf8') as f:
             data = json.load(f)
         print("...done.")
 
         self.data = pd.DataFrame(data)
-        self.data_path = path_to_data
-        self.training_data = None
         self.description = "Data was loaded from file {}. \n".format(path_to_data)
 
     def head(self):
@@ -84,7 +78,7 @@ class DexterData:
             plt.hist(df, bins=bins, alpha=0.5, label=selector)
 
         num_x_ticks = len(ax.xaxis.get_ticklabels())
-        every_nth = num_x_ticks/10
+        every_nth = num_x_ticks / 10
         for n, label in enumerate(ax.xaxis.get_ticklabels()):
             if n % every_nth != 0 and n != num_x_ticks:
                 label.set_visible(False)
@@ -93,12 +87,12 @@ class DexterData:
         plt.legend(loc='upper right')
         plt.show()
 
-    def get_training_data(self, text_column, min_count_ngrams=50, threshold_ngrams=10,
-                          remove_stopwords=False, lemmatize=False, make_ngrams=True):
+    def extract_sentences(self, text_column, output_path, remove_stopwords=False, lemmatize=False):
         """Get a representation of the data that can be used to train a word2vec model.
 
         Args:
             text_column (str): name of the column that contains the text
+            output_path (str): path to save training data to
             min_count_ngrams (int): Ignore all words and ngrams with total collected count lower than this value
             threshold_ngrams (int):  Represent a score threshold for forming the phrases (higher means fewer phrases).
                 A phrase of words a followed by b is accepted if the score of the phrase is greater than threshold.
@@ -108,37 +102,19 @@ class DexterData:
             make_ngrams (bool): If true, make bi and trigrams
         """
 
-        # document pre-processing in description
-        self.description += "Data preprocessing included the following steps: \n"
-        self.description += "...split documents into sentences\n"
-        self.description += r"...remove all words that have single upper case letters surrounded by lower case " \
-                            r"letters (to get rid of javascript) " + "\n"
-        self.description += r"...remove html formatting with BeautifulSoup (html.parser) " + "\n"
-        self.description += r"...remove expression '\xad' " + "\n"
-        self.description += r"...remove expression 'displayad'" + "\n"
-        self.description += r"...remove punctuation (but keep digits)" + "\n"
-        self.description += r"...remove words that contain substrings {}, ".format(GARBAGE) + "\n"
-        if remove_stopwords:
-            self.description += r"...remove words from nltk's list of english stopwords (making exceptions for {}),".format(
-                STOPWORD_EXCEPTIONS) + "\n"
-        self.description += r"...make all words lower case, " + "\n"
-        if lemmatize:
-            self.description += r"...lemmatize words with nltk's WordNetLemmatizer, " + "\n"
+        if os.path.exists(output_path + '-training-data.txt'):
+            raise ValueError(f"File {output_path + '-training-data.txt'} exists already.")
 
+        print("Start cleaning documents...")
 
-        print("Clean documents...")
+        for i in range(self.data.shape[0]):
 
-        # create list of word lists per document (i.e., newspaper article, utterance)
-        cleaned_data = []
-        corpus = self.data[text_column].to_list()
+            # retrieve i'th document
+            document = self.data.iloc[i, self.data.columns.get_loc(text_column)]
+            # split into sentences
+            sentences = document.split(".")
 
-        corpus = [document.split(".") for document in corpus]
-        sentences = [sentence for document in corpus for sentence in document]
-
-        for idx, sentence in enumerate(sentences):
-
-                if idx % 10000 == 0:
-                    print("...cleaned first ", idx, " sentences...")
+            for idx, sentence in enumerate(sentences):
 
                 sentence = re.sub(r'\b[a-z]+(?:[A-Z][a-z]+)+\b', '', sentence)
 
@@ -165,54 +141,91 @@ class DexterData:
                     lm = nltk.WordNetLemmatizer()
                     sentence = [lm.lemmatize(word) for word in sentence]
 
-                cleaned_data.append(sentence)
+                sentence = " ".join(sentence)
+                # save cleaned sentence in a row
+                if sentence:
+                    with open(output_path + '-training-data.txt', 'a+') as f:
+                        f.write('%s\n' % sentence)
 
-        # SECOND STEP: make N-Grams #########################
-        print("...make bigrams and trigrams...")
+            if i % 10000 == 0:
+                print("...cleaned first ", i, " documents...")
 
-        if make_ngrams:
-            # save description
-            self.description += "...turn common word sequences into bigrams or trigrams using gensim " \
-                                "(min_count {} and threshold {})".format(min_count_ngrams, threshold_ngrams)
+        # document what has been done during pre-processing and save as file
+        self.description += "Data preprocessing included the following steps: \n"
+        self.description += "...split documents into sentences\n"
+        self.description += r"...remove all words that have single upper case letters surrounded by lower case " \
+                            r"letters (to get rid of javascript) " + "\n"
+        self.description += r"...remove html formatting with BeautifulSoup (html.parser) " + "\n"
+        self.description += r"...remove expression '\xad' " + "\n"
+        self.description += r"...remove expression 'displayad'" + "\n"
+        self.description += r"...remove punctuation (but keep digits)" + "\n"
+        self.description += r"...remove words that contain substrings {}, ".format(GARBAGE) + "\n"
+        if remove_stopwords:
+            self.description += r"...remove words from nltk's list of english stopwords (making exceptions for {}),".format(
+                STOPWORD_EXCEPTIONS) + "\n"
+        self.description += r"...make all words lower case, " + "\n"
+        if lemmatize:
+            self.description += r"...lemmatize words with nltk's WordNetLemmatizer, " + "\n"
 
-            bigram = gensim.models.Phrases(cleaned_data, min_count=min_count_ngrams, threshold=threshold_ngrams)
-            trigram = gensim.models.Phrases(bigram[cleaned_data], min_count=min_count_ngrams, threshold=threshold_ngrams)
-
-            bigram_mod = gensim.models.phrases.Phraser(bigram)
-            trigram_mod = gensim.models.phrases.Phraser(trigram)
-
-            cleaned_data = [trigram_mod[bigram_mod[document]] for document in cleaned_data]
-
-        print("...done.")
-
-        ##########################
-
-        self.training_data = [sentence for sentence in cleaned_data if sentence != []]
-
-        return cleaned_data
-
-    def save_training_data(self, output_path):
-        """Save the training data in "one-sentence-per-line" format."""
-
-        if self.training_data is None:
-            raise ValueError("You need to run the get_training_data() method before saving the data.")
-
-        # Save training data
-        with open(output_path + '-training-data.txt', 'w') as f:
-            for document in self.training_data:
-                sentence = " ".join(word for word in document)
-                f.write('%s\n' % sentence)
-
-        # Save description
-        with open(output_path + '-description.txt', 'w') as f:
+        with open(output_path + '-description.txt', 'a') as f:
             f.write('%s' % self.description)
 
-    @classmethod
-    def word_frequencies(self, list_of_token_lists):
-        """Get a list of word frequencies in list_of_token_lists, sorted from the most frequent to the least."""
 
-        flat_training_data = [word for document in list_of_token_lists for word in document]
-        frequencies = [[value, len(list(freq))] for value, freq in groupby(sorted(flat_training_data))]
-        frequencies = sorted(frequencies, key=lambda x: x[1], reverse=True)
+def make_ngrams(input_path, description_path=None, min_count_ngrams=50, threshold_ngrams=10):
+    """Replace frequently occuring word combinations with bigrams and trigrams in document
+    of sentences."""
 
-        return pd.DataFrame({'word': [f[0] for f in frequencies], 'frequency': [f[1] for f in frequencies]})
+    temp_path = input_path[:-4] + "-temp.txt"
+
+    def sentence_generator(path):
+        """Read sentences from disk one-by-one"""
+        with open(path, 'r') as f:
+            for line in f:
+                yield line.split()
+
+    print("Making bigrams...")
+
+    gram_model = Phrases(sentence_generator(input_path),
+                         min_count=min_count_ngrams,
+                         threshold=threshold_ngrams,
+                         max_vocab_size=2000000,
+                         connector_words=ENGLISH_CONNECTOR_WORDS)
+
+    # slim down model (no new sentences can be added)
+    gram_model.freeze()
+
+    # write bigram sentences into temporary file
+    # (couldn't figure out how to replace)
+    with open(temp_path, 'w') as f:
+        for sentence in sentence_generator(input_path):
+            new_sentence = gram_model[sentence]
+            new_sentence = " ".join(new_sentence) + "\n"
+            f.write(new_sentence)
+
+    print("...and trigrams...")
+    # repeat procedure to get trigrams
+    gram_model = Phrases(sentence_generator(temp_path),
+                         min_count=min_count_ngrams,
+                         threshold=threshold_ngrams,
+                         max_vocab_size=2000000,
+                         connector_words=ENGLISH_CONNECTOR_WORDS)
+
+    gram_model.freeze()
+
+    # overwrite input path
+    with open(input_path, 'w') as f:
+        for sentence in sentence_generator(temp_path):
+            new_sentence = gram_model[sentence]
+            new_sentence = " ".join(new_sentence) + "\n"
+            f.write(new_sentence)
+
+    # delete file at temp path
+    os.remove(temp_path)
+    print("...done.")
+
+    description = "...turn common word sequences into bigrams or trigrams using gensim " \
+                  "(min_count {} and threshold {})".format(min_count_ngrams, threshold_ngrams)
+
+    if description_path is not None:
+        with open(description_path, 'a') as f:
+            f.write('%s' % description)
