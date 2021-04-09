@@ -108,12 +108,9 @@ class DexterData:
             make_ngrams (bool): If true, make bi and trigrams
         """
 
-        print("Process data...")
+        # document pre-processing in description
         self.description += "Data preprocessing included the following steps: \n"
         self.description += "...split documents into sentences\n"
-
-        # FIRST STEP: CLEANING DOCUMENTS #########################
-        print("...clean documents...")
         self.description += r"...remove all words that have single upper case letters surrounded by lower case " \
                             r"letters (to get rid of javascript) " + "\n"
         self.description += r"...remove html formatting with BeautifulSoup (html.parser) " + "\n"
@@ -127,6 +124,9 @@ class DexterData:
         self.description += r"...make all words lower case, " + "\n"
         if lemmatize:
             self.description += r"...lemmatize words with nltk's WordNetLemmatizer, " + "\n"
+
+
+        print("Clean documents...")
 
         # create list of word lists per document (i.e., newspaper article, utterance)
         cleaned_data = []

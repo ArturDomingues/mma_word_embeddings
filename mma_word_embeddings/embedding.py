@@ -811,7 +811,7 @@ class EmbeddingEnsemble:
 
            idx (int): index of embedding in the list of paths
         """
-        if self.list_of_embeddings is None:
+        if not self.list_of_embeddings:
             try:
                 # load the word vectors of an embedding
                 return WordEmbedding(self.paths[idx])
@@ -940,8 +940,9 @@ class EmbeddingEnsemble:
                 individual.append(np.nan)
                 continue
 
-            analogy_list = emb._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
-            if test_word in analogy_list:
+            analogy_tuples = emb._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
+            analogy_words = [tpl[0] for tpl in analogy_tuples]
+            if test_word in analogy_words:
                 individual.append(True)
             else:
                 individual.append(False)
