@@ -119,7 +119,7 @@ class DexterData:
         self.description += r"...remove html formatting with BeautifulSoup (html.parser) " + "\n"
         self.description += r"...remove expression '\xad' " + "\n"
         self.description += r"...remove expression 'displayad'" + "\n"
-        self.description += r"...remove punctuation and digits" + "\n"
+        self.description += r"...remove punctuation (but keep digits)" + "\n"
         self.description += r"...remove words that contain substrings {}, ".format(GARBAGE) + "\n"
         if remove_stopwords:
             self.description += r"...remove words from nltk's list of english stopwords (making exceptions for {}),".format(
@@ -149,7 +149,7 @@ class DexterData:
                 sentence = sentence.replace('displayad', '')
 
                 sentence = ''.join(char for word in sentence for char in word
-                                   if char not in PUNCTUATION and not char.isdigit())
+                                   if char not in PUNCTUATION)
 
                 # split string into list of words separated by whitespace
                 sentence = sentence.split()

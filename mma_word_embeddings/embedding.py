@@ -335,16 +335,6 @@ class WordEmbedding:
 
         return self._word_vectors.similar_by_vector(vector, topn=n)
 
-    def least_similar(self, word, n=10):
-        """Return the words least similar to 'word'."""
-        most_sim = self._word_vectors.most_similar(word, topn=self.vocab_size())
-        last_n = most_sim[-n:]
-        return last_n[::-1]
-
-    def least_similar_by_vector(self, vector, n=10):
-        """Return the words least similar to 'word'."""
-        return self.most_similar_by_vector(-vector, n=n)
-
     def similarities_of_differences(self, list_of_word_pairs):
         """Construct the difference vectors for each word pair and return a dictionary of their similarities."""
 
@@ -777,299 +767,245 @@ class WordEmbedding:
 
 
 class EmbeddingEnsemble:
-    """Applies actions to an list_of_embeddings of trained embeddings."""
+    """Applies actions to an list_of_embeddings of trained embeddings.
+    Args:
+        path_to_embeddings (list[str] or str): either list of paths to the embedding files,
+            or string that constitutes the same beginning of the path to all embeddings
+        load_all_embeddings_to_ram (bool): if False, load the embeddings one-by-one in each method
 
-    def __init__(self, path_to_embeddings):
+    """
+
+    def __init__(self, path_to_embeddings, load_all_embeddings_to_ram=True):
 
         self.list_of_embeddings = []
 
+        # convert input to list of paths to the embeddings
+        # in the ensemble
         if isinstance(path_to_embeddings, list):
-
-            paths = path_to_embeddings
-
+            # paths are already defined
+            self.paths = path_to_embeddings
         else:
-
-            paths = glob.glob(path_to_embeddings + '*.emb')
-
-            if len(paths) == 0:
+            # identify all paths that contain string
+            self.paths = glob.glob(path_to_embeddings + '*.emb')
+            if len(self.paths) == 0:
                 raise EmbeddingError("Failed to find any appropriate file. Please make sure that "
                                      "there are trained embeddings under this path.".format(path_to_embeddings))
 
-        # Iterate through all paths
-        for path in paths:
+        self.size = len(self.paths)
 
+        if load_all_embeddings_to_ram:
+            # load all embeddings into a list
+            for path in self.paths:
+                try:
+                    # load the word vectors of an embedding
+                    emb = WordEmbedding(path)
+                except FileNotFoundError:
+                    raise EmbeddingError("Failed to load the trained embeddings {}. Please make sure that "
+                                         "the path to this file really exists.".format(path))
+                self.list_of_embeddings.append(emb)
+
+    def member(self, idx):
+        """Load or retrieve an embedding from the ensemble.
+           If embeddings were not loaded to list_of_embeddings at initialization, this function will
+           load the embedding from disk.
+
+           idx (int): index of embedding in the list of paths
+        """
+        if self.list_of_embeddings is None:
             try:
                 # load the word vectors of an embedding
-                emb = WordEmbedding(path)
+                return WordEmbedding(self.paths[idx])
             except FileNotFoundError:
                 raise EmbeddingError("Failed to load the trained embeddings {}. Please make sure that "
-                                     "the path to this file really exists.".format(path))
+                                     "the path to this file really exists.".format(self.paths[idx]))
 
-            self.list_of_embeddings.append(emb)
-
-        self.description = "This object represents the list_of_embeddings {} of {} word trained embeddings."\
-            .format(path_to_embeddings, len(self.list_of_embeddings))
-
-    def shared_vocab(self):
-        """Return the subset of the vocab that is shared by all embeddings in the list_of_embeddings
-        (i.e. the intersection of their vocab)."""
-        vocabs = [emb.vocab() for emb in self.list_of_embeddings]
-        shared_vocab = set(vocabs[0]).intersection(*vocabs)
-        return list(shared_vocab)
-
-    def in_vocab(self, word):
-        """Return whether word is in vocab."""
-        individual = [emb.in_vocab(word) for emb in self.list_of_embeddings]
-        data = [['in_vocab'] + individual]
-        df = pd.DataFrame(data, columns=[''] + self.cols)
-        df['MEAN'] = df.mean(numeric_only=True, axis=1)
-        return df
-
-    def similarity(self, word1, word2):
-        """Return the cosine similarities between 'word1' and 'word2'."""
-        individual = [emb.similarity(word1, word2) for emb in self.list_of_embeddings]
-        data = [['similarity'] + individual]
-        df = pd.DataFrame(data, columns=[''] + self.cols)
-        df['MEAN'] = df.mean(numeric_only=True, axis=1)
-        df['STD'] = df.std(numeric_only=True, axis=1)
-        return df
-
-    def similarities(self, list_of_word_pairs):
-        """Return the cosine similarities between the pairs of words."""
-        base_df = self.list_of_embeddings[0].similarities(list_of_word_pairs)
-        base_df = base_df.rename({"Similarity": "Sim_emb1"}, axis=1)
-        for idx, emb in enumerate(self.list_of_embeddings[1:]):
-            df = emb.similarities(list_of_word_pairs)
-            df = df.rename({"Similarity": "Sim_emb" + str(idx+2)}, axis=1)
-            base_df = pd.merge(base_df, df, on=['Word1', 'Word2'])
-
-        base_df['MEAN'] = base_df.mean(numeric_only=True, axis=1)
-        base_df['STD'] = base_df.std(numeric_only=True, axis=1)
-        if self.training_data is not None:
-            base_df['Word1_freq'] = [self.frequency_in_training_data(word) for word in base_df['Word1']]
-            base_df['Word2_freq'] = [self.frequency_in_training_data(word) for word in base_df['Word2']]
-        return base_df
-
-    def projections_to_bipolar_dimensions(self, test, dimensions, normalize_before=True):
-        """ Same as the embedding method with the same name, but produces an average of the projections of each ensemble.
-        """
-        if isinstance(test, str):
-            test_words = [test]
         else:
-            test_words = test
+            return self.list_of_embeddings[idx]
 
-        # make dimension for each embedding, with only words found in its vocab ===========
-        processed_dims = {}
-        for dim_name, dim_words in dimensions.items():
+    def vocab(self, aggregate=True):
+        """Retrieve the vocabulary of this ensemble.
 
-            if len(dim_words) != 2 and not (isinstance(dim_words[0], list) and isinstance(dim_words[1], list)):
-                raise ValueError("Generating words must be a list of exactly two lists that contain words.")
+        Args:
+            aggregate (bool): whether to aggregate the results to a single answer
 
-            processed_dims[dim_name] = {}
+        Returns:
+            list: if aggregate is true, return a list containing the shared words, else return a list of the
+                member's individual vocabulary.
+        """
+        individual = [self.member(i).vocab() for i in range(self.size)]
 
-            for idx, emb in enumerate(self.list_of_embeddings):
+        if aggregate:
+            # get unique words across all member's vocabs
+            shared_vocab = set(individual[0]).intersection(*individual)
+            return list(shared_vocab)
+        else:
+            return individual
 
-                # LEFT ======================
-                # check which dim words cannot be used in this embedding
-                left_dim_words_in_emb = []
-                left_dim_words_not_in_emb = []
-                for dim_word in dim_words[0]:
-                    if emb.in_vocab(dim_word):
-                        left_dim_words_in_emb.append(dim_word)
-                    else:
-                        left_dim_words_not_in_emb.append(dim_word)
+    def in_vocab(self, word, aggregate=True):
+        """Check whether word is in vocabulary of the ensemble.
 
-                if not left_dim_words_in_emb:
-                    print(
-                        "INFO: None of the left generating words to construct dimension {} found in embedding no {};"
-                        "this embedding is not used to compute the ensemble projection for "
-                        "this dimension.".format(dim_name, idx))
-                    continue
+         Args:
+             word (str): word to check
+            aggregate (bool): whether to aggregate the results to a single answer
 
-                if left_dim_words_not_in_emb:
-                    print("INFO: Left generating word(s) {} not found in vocab of embedding no {}; "
-                          "word(s) will not be used to construct the dimension in this "
-                          "embedding.".format(left_dim_words_not_in_emb, idx))
+         Returns:
+             bool or list[bool]: if aggregate is true, return whether the word is in all member's vocabularies,
+                else return answer for each member
 
-                # RIGHT ======================
-                # check which dim words cannot be used in this embedding
-                right_dim_words_in_emb = []
-                right_dim_words_not_in_emb = []
-                for dim_word in dim_words[1]:
-                    if emb.in_vocab(dim_word):
-                        right_dim_words_in_emb.append(dim_word)
-                    else:
-                        right_dim_words_not_in_emb.append(dim_word)
+        """
+        individual = [self.member(i).in_vocab(word) for i in range(self.size)]
+        if aggregate:
+            return all(individual)
+        else:
+            return individual
 
-                if not right_dim_words_in_emb:
-                    print(
-                        "INFO: None of the right generating words to construct dimension {} found in embedding no {};"
-                        "this embedding is not used to compute the ensemble projection for "
-                        "this dimension.".format(dim_name, idx))
-                    continue
+    def similarity(self, word1, word2, aggregate=True):
+        """Return the cosine similarity between 'word1' and 'word2'.
 
-                if right_dim_words_not_in_emb:
-                    print("INFO: Right generating word(s) {} not found in vocab of embedding no {}; "
-                          "word(s) will not be used to construct the dimension in this "
-                          "embedding.".format(right_dim_words_not_in_emb, idx))
+         Args:
+             word1 (str): first word
+             word2 (str): second word
+                aggregate (bool): whether to aggregate the results to a single answer
 
-                processed_dims[dim_name][idx] = [left_dim_words_in_emb, right_dim_words_in_emb]
+         Returns:
+            float or list[float]: if aggregate is true, return average similarity, else return list of member's
+                similarities
+        """
+        individual = []
+        for i in range(self.size):
+            emb = self.member(i)
+            if not emb.in_vocab(word1):
+                print(word1, "not in vocab of embedding ", i, ", will skip this member")
+                individual.append(np.nan)
+                continue
+            if not emb.in_vocab(word2):
+                print(word2, "not in vocab of embedding ", i, ", will skip this member")
+                individual.append(np.nan)
+                continue
+            individual.append(emb.similarity(word1, word2))
 
-        # ===============
+        if aggregate:
+            return np.mean(individual)
+        else:
+            return individual
 
-        data = []
-        for test_word in test_words:
+    def analogy(self, positive_list, negative_list, n=10, aggregate=True):
+        """Compute words closest to the vector resulting from an analogy computation as
+           proposed in https://www.aclweb.org/anthology/W14-1618.pdf .
 
-            row = [test_word]
-            cols = ["test_word"]
+         Args:
+            positive_list (list[str]): list of positive words
+            negative_list (list[str]): list of negative words
+            n (int): how many neighbours to compute
+            aggregate (bool): whether to aggregate the results to a single answer
 
-            # get indices of embeddings have test word in vocab
-            emb_idx = []
-            for idx, emb in enumerate(self.list_of_embeddings):
-                if emb.in_vocab(test_word):
-                    emb_idx.append(idx)
-
-            # kick test word out if it is in no embedding
-            if not emb_idx:
-                print("INFO: Test word {} is not in vocab of any embedding in the ensemble "
-                      "and has been removed from the list of results.".format(test_word))
+         Returns:
+             list[list] or list[tuple]: if aggregate is true, return the set of all words returned by the members,
+                indicating in how many member's lists they appeared, else return list of member's word lists
+        """
+        individual = []
+        for i in range(self.size):
+            emb = self.member(i)
+            if not all(emb.in_vocab(word) for word in positive_list + negative_list):
+                print("some word(s) not found in vocab of embedding ", i, ", will skip this member")
+                individual.append([])
                 continue
 
-            # notify user which embeddings are used
-            not_in = set(range(len(self.list_of_embeddings))) - set(emb_idx)
-            if not_in:
-                print("INFO: Test word {} not found in vocab of embedding number(s) {}; "
-                      "embedding(s) will not be used to compute the projection "
-                      "of the test word.".format(test_word, not_in))
+            analogy_list = emb._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
+            individual.append(analogy_list)
 
-            # =========================================
-
-            for dim_name, dim_dict in dimensions.items():
-
-                results = []
-                for idx in emb_idx:
-                    if idx in processed_dims[dim_name]:
-
-                        emb = self.list_of_embeddings[idx]
-                        test_vec = emb.vector(test_word)
-                        centroid_left = emb.centroid_of_vectors(processed_dims[dim_name][idx][0])
-                        centroid_right = emb.centroid_of_vectors(processed_dims[dim_name][idx][1])
-                        diff = centroid_left - centroid_right
-
-                        if normalize_before:
-                            diff = normalize_vector(diff)
-
-                        res = np.dot(test_vec, diff)
-                        results.append(res)
-
-                row.extend([np.mean(results), np.std(results)])
-
-            data.append(row)
-
-        # make correct col names
-        for dim in list(dimensions):
-            cols.extend([dim, dim + "(std)"])
-
-        df = pd.DataFrame(data, columns=cols)
-        df = df.sort_values(cols[1:], axis=0, ascending=False)
-        return df
-
-    def projections_to_unipolar_dimensions(self, test, dimensions, normalize_before=True):
-        """Same as the embedding method with the same name, but produces an average of the projections of each ensemble.
-        """
-        if isinstance(test, str):
-            test_words = [test]
+        if aggregate:
+            flat_analogy_list = [tpl[0] for member in individual for tpl in member]
+            c = Counter(flat_analogy_list)
+            return sorted([(k, v) for k, v in c.items()], key=lambda tpl: tpl[1], reverse=True)
         else:
-            test_words = test
+            return individual
 
-        # make dimension for each embedding, with only words found in its vocab ===========
-        processed_dims = {}
-        for dim_name, dim_words in dimensions.items():
+    def analogy_test(self, positive_list, negative_list, test_word, n=10, aggregate=True):
+        """Check whether the test word appears in the n closest words to the vector resulting from
+           an analogy computation as proposed in https://www.aclweb.org/anthology/W14-1618.pdf .
 
-            if len(np.array(dim_words).shape) != 1:
-                raise ValueError("Generating words must be a list of words.")
+        Args:
+           aggregate (bool): whether to aggregate the results to a single answer
 
-            processed_dims[dim_name] = {}
-
-            for idx, emb in enumerate(self.list_of_embeddings):
-
-                # check which dim words cannot be used in this embedding
-                dim_words_in_emb = []
-                dim_words_not_in_emb = []
-                for dim_word in dim_words[0]:
-                    if emb.in_vocab(dim_word):
-                        dim_words_in_emb.append(dim_word)
-                    else:
-                        dim_words_not_in_emb.append(dim_word)
-
-                if not dim_words_in_emb:
-                    print(
-                        "INFO: None of the generating words to construct dimension {} found in embedding no {};"
-                        "this embedding is not used to compute the ensemble projection for "
-                        "this dimension.".format(dim_name, idx))
-                    continue
-
-                if dim_words_not_in_emb:
-                    print("INFO: Generating word(s) {} not found in vocab of embedding no {}; "
-                          "word(s) will not be used to construct the dimension in this "
-                          "embedding.".format(dim_words_not_in_emb, idx))
-
-
-                processed_dims[dim_name][idx] = dim_words_in_emb
-
-        # ===============
-
-        data = []
-        for test_word in test_words:
-
-            row = [test_word]
-            cols = ["test_word"]
-
-            # get indices of embeddings have test word in vocab
-            emb_idx = []
-            for idx, emb in enumerate(self.list_of_embeddings):
-                if emb.in_vocab(test_word):
-                    emb_idx.append(idx)
-
-            # kick test word out if it is in no embedding
-            if not emb_idx:
-                print("INFO: Test word {} is not in vocab of any embedding in the ensemble "
-                      "and has been removed from the list of results.".format(test_word))
+        Returns:
+            bool or list[bool]: if aggregate is true, whether the test word was found in all members, else
+                return a list of individual test results.
+        """
+        individual = []
+        for i in range(self.size):
+            emb = self.member(i)
+            if not all(emb.in_vocab(word) for word in positive_list + negative_list):
+                print("some word(s) not found in vocab of embedding ", i, ", will skip this member")
+                individual.append(np.nan)
                 continue
 
-            # notify user which embeddings are used
-            not_in = set(range(len(self.list_of_embeddings))) - set(emb_idx)
-            if not_in:
-                print("INFO: Test word {} not found in vocab of embedding number(s) {}; "
-                      "embedding(s) will not be used to compute the projection "
-                      "of the test word.".format(test_word, not_in))
+            analogy_list = emb._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
+            if test_word in analogy_list:
+                individual.append(True)
+            else:
+                individual.append(False)
 
-            # =========================================
+        if aggregate:
+            return all(individual)
+        else:
+            return individual
 
-            for dim_name, dim_dict in processed_dims.items():
+    def most_similar(self, word, n=10, aggregate=True):
 
-                results = []
-                for idx in emb_idx:
-                    if idx in processed_dims[dim_name]:
+        """Return the words most similar to 'word'.
 
-                        emb = self.list_of_embeddings[idx]
-                        test_vec = emb.vector(test_word)
-                        centroid = emb.centroid_of_vectors(processed_dims[dim_name][idx])
+         Args:
+             word (str): word to check
+             n (int): number of neighbours
+             aggregate (bool): whether to aggregate the results to a single answer
 
-                        if normalize_before:
-                            centroid = normalize_vector(centroid)
-                        res = np.dot(test_vec, centroid)
-                        results.append(res)
+         Returns:
+             list[str] or list[list[str]]: if aggregate is true, return the set of all words returned by the members,
+                indicating in how many member's lists they appeared, else return list of member's word lists
+        """
+        individual = []
+        for i in range(self.size):
+            emb = self.member(i)
+            if not emb.in_vocab(word):
+                print(word, " not found in vocab of embedding ", i, ", will skip this member")
+                individual.append([])
+                continue
 
-                row.extend([np.mean(results), np.std(results)])
+            ms = emb._word_vectors.most_similar(word, topn=n)
+            ms = [(word, round(s, 3)) for word, s in ms]
+            individual.append(ms)
 
-            data.append(row)
+        if aggregate:
+            flat_list = [tpl[0] for member in individual for tpl in member]
+            c = Counter(flat_list)
+            return sorted([(k, v) for k, v in c.items()], key=lambda tpl: tpl[1], reverse=True)
+        else:
+            return individual
 
-        # make correct col names
-        for dim in list(dimensions):
-            cols.extend([dim, dim + "(std)"])
+    def most_similar_by_vectors(self, vector_list, n=10, aggregate=True):
+        """Return the words most similar to a vector.
 
-        df = pd.DataFrame(data, columns=cols)
-        df = df.sort_values(cols[1:], axis=0, ascending=False)
-        return df
+        Args:
+            vector (list[array]): vectors to check, one for each member of the ensemble
+            n (int): number of neighbours
+            aggregate (bool): whether to aggregate the results to a single answer
 
+        Returns:
+            list[str] or list[list[str]]: if aggregate is true, return the set of all words returned by the members,
+                indicating in how many member's lists they appeared, else return list of member's word lists
+        """
+
+        individual = []
+        for i in range(self.size):
+            emb = self.member(i)
+            ms = emb._word_vectors.similar_by_vector(vector_list[i], topn=n)
+            ms = [(word, round(s, 3)) for word, s in ms]
+            individual.append(ms)
+
+        if aggregate:
+            flat_list = [tpl[0] for member in individual for tpl in member]
+            c = Counter(flat_list)
+            return sorted([(k, v) for k, v in c.items()], key=lambda tpl: tpl[1], reverse=True)
+        else:
+            return individual
