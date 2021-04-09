@@ -1,17 +1,15 @@
 # This file contains a class for data loading and analysing
 # MMA data provided as json files
 import pandas as pd
-import json
 from nltk.corpus import stopwords
 import matplotlib.pyplot as plt
 import nltk
-import gensim
 import string
 from bs4 import BeautifulSoup
 import re
-import sys
 import os
 from gensim.models.phrases import Phrases, ENGLISH_CONNECTOR_WORDS
+from io import StringIO
 
 nltk.download('stopwords')
 nltk.download('wordnet')
@@ -33,35 +31,11 @@ class DexterData:
 
         print("Loading data...")
 
-        with open(path_to_data, 'r', encoding='utf8') as f:
-            self.data = json.load(f)
+        self.reader = pd.read_json(StringIO(path_to_data), lines=True, chunksize=1)
+
         print("...done.")
 
-        self.data = pd.DataFrame(self.data)
         self.description = "Data was loaded from file {}. \n".format(path_to_data)
-
-    def head(self):
-        """print head of data frame."""
-        return self.data.head()
-
-    def first_entry(self, column):
-        """return first entry of the column."""
-        return self.data[column].iloc[0]
-
-    def column_names(self):
-        """Return list of column names."""
-
-        return list(self.data)
-
-    def column(self, column):
-        """Return 'column' as a list."""
-
-        return self.data[column].to_list()
-
-    def unique_values(self, column):
-        """Return list of unique values represented in the column."""
-
-        return self.data[column].value_counts()
 
     def filter(self, column, selectors):
         """Only keep rows with any of 'selectors' as value for 'column'."""
@@ -107,10 +81,10 @@ class DexterData:
 
         print("Start cleaning documents...")
 
-        for i in range(self.data.shape[0]):
+        for idx, row in enumerate(self.reader):
 
-            # retrieve i'th document
-            document = self.data.iloc[i, self.data.columns.get_loc(text_column)]
+            # retrieve document in row
+            document = row.iloc[0, self.data.columns.get_loc(text_column)]
             # split into sentences
             sentences = document.split(".")
 
