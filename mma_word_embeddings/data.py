@@ -34,10 +34,10 @@ class DexterData:
         print("Loading data...")
 
         with open(path_to_data, 'r', encoding='utf8') as f:
-            data = json.load(f)
+            self.data = json.load(f)
         print("...done.")
 
-        self.data = pd.DataFrame(data)
+        self.data = pd.DataFrame(self.data)
         self.description = "Data was loaded from file {}. \n".format(path_to_data)
 
     def head(self):
@@ -181,7 +181,7 @@ def make_ngrams(input_path, description_path=None, min_count_ngrams=50, threshol
         """Read sentences from disk one-by-one"""
         with open(path, 'r') as f:
             for line in f:
-                yield line.split()
+                yield line.strip().split()
 
     print("Making bigrams...")
 
