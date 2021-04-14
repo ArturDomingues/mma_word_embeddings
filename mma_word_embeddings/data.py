@@ -121,8 +121,8 @@ class DexterData:
                     with open(output_path + '-training-data.txt', 'a+') as f:
                         f.write('%s\n' % sentence)
 
-            if i % 10000 == 0:
-                print("...cleaned first ", i, " documents...")
+            if idx % 10000 == 0:
+                print("...cleaned first ", idx, " documents...")
 
         # document what has been done during pre-processing and save as file
         self.description += "Data preprocessing included the following steps: \n"

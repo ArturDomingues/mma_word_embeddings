@@ -80,7 +80,7 @@ class WordEmbedding:
 
     def in_vocab(self, word):
         """Return whether word is in vocab."""
-        return word in list(self._word_vectors.vocab)
+        return word in list(self._word_vectors.index_to_key)
 
     def random_words(self, n_words=100, min_frequency=None):
         """Return a list of random words from the vocab of this embedding.
@@ -921,7 +921,7 @@ class EmbeddingEnsemble:
         else:
             return individual
 
-    def analogy_test(self, positive_list, negative_list, test_word, n=10, aggregate=True):
+    def analogy_test(self, positive_list, negative_list, test_word, n=10, m=10, aggregate=True):
         """Check whether the test word appears in the n closest words to the vector resulting from
            an analogy computation as proposed in https://www.aclweb.org/anthology/W14-1618.pdf .
 
@@ -929,27 +929,35 @@ class EmbeddingEnsemble:
            aggregate (bool): whether to aggregate the results to a single answer
 
         Returns:
-            bool or list[bool]: if aggregate is true, whether the test word was found in all members, else
-                return a list of individual test results.
-        """
-        individual = []
-        for i in range(self.size):
-            emb = self.member(i)
-            if not all(emb.in_vocab(word) for word in positive_list + negative_list):
-                print("some word(s) not found in vocab of embedding ", i, ", will skip this member")
-                individual.append(np.nan)
-                continue
+            bool or list[bool]: If aggregate is false return a list of individual test results. If it is true,
+                we check whether the test word is in the first m words of the list produced by
+                analogy(positive_list, negative_list, n=n, aggregate=True).
 
-            analogy_tuples = emb._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
-            analogy_words = [tpl[0] for tpl in analogy_tuples]
-            if test_word in analogy_words:
-                individual.append(True)
-            else:
-                individual.append(False)
+        """
 
         if aggregate:
-            return all(individual)
+            cumulative_list = self.analogy(positive_list, negative_list, n=n, aggregate=True)
+            # extract words
+            cumulative_list = [tpl[0] for tpl in cumulative_list]
+            return test_word in cumulative_list[:m]
+
         else:
+
+            individual = []
+            for i in range(self.size):
+                emb = self.member(i)
+                if not all(emb.in_vocab(word) for word in positive_list + negative_list):
+                    print("some word(s) not found in vocab of embedding ", i, ", will skip this member")
+                    individual.append(np.nan)
+                    continue
+
+                analogy_tuples = emb._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
+                analogy_words = [tpl[0] for tpl in analogy_tuples]
+                if test_word in analogy_words:
+                    individual.append(True)
+                else:
+                    individual.append(False)
+
             return individual
 
     def most_similar(self, word, n=10, aggregate=True):
