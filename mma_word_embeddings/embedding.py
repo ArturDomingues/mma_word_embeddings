@@ -1,6 +1,6 @@
 # This file contains a wrapper class that represents word trained embeddings
 from gensim.models import KeyedVectors
-from mma_word_embeddings.utils import normalize_vector, make_pairs, kl_divergence, mmd2
+from mma_word_embeddings.utils import normalize_vector, make_pairs
 import numpy as np
 from itertools import combinations_with_replacement, combinations, product
 import pandas as pd

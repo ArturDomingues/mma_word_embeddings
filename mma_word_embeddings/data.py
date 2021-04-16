@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 import re
 import os
 from gensim.models.phrases import Phrases, ENGLISH_CONNECTOR_WORDS
-from io import StringIO
+import json
 
 nltk.download('stopwords')
 nltk.download('wordnet')
@@ -20,18 +20,37 @@ PUNCTUATION = string.punctuation.replace("_", "") + "“”’‘‚…–"  # a
 GARBAGE = ['windowtextcolor', ]
 
 
+def head(path_to_json, n=5):
+    """Return list of first n dictionaries extracted from a json-lines (.jl) file.
+    Args:
+        path_to_json (str): full path to the .jl file, including ending
+        n (int): number of rows to read
+    """
+    data_loader = open(path_to_json)
+
+    entries = []
+    for i, row in enumerate(data_loader):
+        row_dict = json.loads(row)
+        entries.append(row_dict)
+        if i == n-1:
+            break
+
+    data_loader.close()
+    return entries
+
+
 def extract_clean_sentences(path_to_json,
                             text_column,
                             output_path,
-                            filter=None,
+                            filter={},
                             remove_stopwords=False,
                             lemmatize=False):
     """Save a preprocessed representation of the data to a new file.
 
     Args:
-        path_to_json (str): path to json-lines (.jl or .jsonl) file that contains the original data
+        path_to_json (str): full path to json-lines (.jl or .jsonl) file that contains the original data
         text_column (str): name of the column that contains the documents
-        output_path (str): path to save training data and description to; does not contain a file ending
+        output_path (str): full path to save training data and description to; does not contain a file ending
         filter (dict[str, list[str]]): Dictionary of column names as keys, and a list of strings
             to search for in the column as values. Only cells where at least one
             of the strings is found will be processed.
@@ -39,30 +58,38 @@ def extract_clean_sentences(path_to_json,
         lemmatize (bool): if true, replace words by their stems
     """
     # check if the output file already exists, to avoid overwriting
-    if os.path.exists(output_path + '-training-data.txt'):
-        raise ValueError(f"File {output_path + '-training-data.txt'} exists already.")
+    if os.path.exists(output_path):
+        raise ValueError(f"File {output_path} exists already.")
 
     # load a json reader that can read files line-by-line
-    try:
-        reader = pd.read_json(StringIO(path_to_json), lines=True, chunksize=1)
-    except FileNotFoundError:
-        raise ValueError("Cannot read the file. Is the path correct?")
+    data_loader = open('/home/maria/Desktop/POLARIZATION/DATA/articles-march-2021.jl')
 
     print("Start cleaning documents...")
 
-    for idx, row in enumerate(reader):
+    for idx, row in enumerate(data_loader):
 
-        # TODO apply filter
-        if True:
+        # turn string into dictionary of the
+        # form {'column_1': content1, 'column_2': content2,...}
+        row_dict = json.loads(row)
+
+        # apply filter
+        ignore_row = False
+        for column_name, string_list in filter.items():
+            at_least_one_string_matches = any(s in row_dict[column_name] for s in string_list)
+            if not at_least_one_string_matches:
+                ignore_row = True
+
+        if ignore_row:
+            # go to next iteration
             continue
 
         # retrieve document in row
-        document = row.iloc[0, row.columns.get_loc(text_column)]
+        document = row_dict[text_column]
 
         # split into sentences
-        sentences = document.split(".")
+        sentences = document.split(". ")
 
-        for idx, sentence in enumerate(sentences):
+        for sentence in sentences:
 
             sentence = re.sub(r'\b[a-z]+(?:[A-Z][a-z]+)+\b', '', sentence)
 
@@ -92,7 +119,7 @@ def extract_clean_sentences(path_to_json,
             sentence = " ".join(sentence)
             # save cleaned sentence in a row
             if sentence:
-                with open(output_path + '-training-data.txt', 'a+') as f:
+                with open(output_path, 'a+') as f:
                     f.write('%s\n' % sentence)
 
         if idx % 10000 == 0:
@@ -118,7 +145,7 @@ def extract_clean_sentences(path_to_json,
     if lemmatize:
         description += r"...lemmatize words with nltk's WordNetLemmatizer, " + "\n"
 
-    with open(output_path + '-description.txt', 'a') as f:
+    with open(output_path[:-4] + '-description.txt', 'a') as f:
         f.write('%s' % description)
 
 
