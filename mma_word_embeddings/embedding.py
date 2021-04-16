@@ -69,14 +69,14 @@ class WordEmbedding:
                 if word.count("_") == n_grams - 1:
                     voc.append(word)
         else:
-            voc = list(self._word_vectors.vocab)
+            voc = list(self._word_vectors.index_to_key)
 
         return sorted(voc)
 
     def vocab_size(self):
         """Return the size of the vocabulary in the embedding."""
 
-        return len(list(self._word_vectors.vocab))
+        return len(self._word_vectors.key_to_index)
 
     def in_vocab(self, word):
         """Return whether word is in vocab."""
@@ -926,13 +926,16 @@ class EmbeddingEnsemble:
            an analogy computation as proposed in https://www.aclweb.org/anthology/W14-1618.pdf .
 
         Args:
-           aggregate (bool): whether to aggregate the results to a single answer
+            positive_list (list[str]): list of positive words
+            negative_list (list[str]): list of negative words
+            n (int): how many neighbours to compute
+            m (int): how many neighbours to extract from the cumulative neighbour list if aggregate=True
+            aggregate (bool): whether to aggregate the results to a single answer
 
         Returns:
             bool or list[bool]: If aggregate is false return a list of individual test results. If it is true,
                 we check whether the test word is in the first m words of the list produced by
                 analogy(positive_list, negative_list, n=n, aggregate=True).
-
         """
 
         if aggregate:

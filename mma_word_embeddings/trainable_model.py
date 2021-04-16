@@ -25,9 +25,24 @@ class Word2VecModel:
               hyperparameters,
               n_models=None,
               share_of_original_data=1.,
+              sample_with_replacement=False,
               seed=None,
               ):
-        """Trains a single embedding or an ensemble of embeddings."""
+        """Trains a single embedding or an ensemble of embeddings.
+
+        Args:
+            output_path (str): where to save the model and description file; does not include an ending (.emb will
+                be automatically added)
+            hyperparameters (dict): dictionary of hyperparameters that are directly fed into Word2Vec model
+            n_models (int or None): number of models to train; if None only one model is trained, else we train an
+                ensemble
+            share_of_original_data (float or None): if float, this is interpreted as the ratio of sentences sampled
+                for training versus the number of sentences in the training data set; if None then the training
+                data is not sampled at all
+            sample_with_replacement (bool): if True (and if share_of_original_data is not None),
+                sample sentences with replacement
+            seed (int): random seed set for sampling
+        """
 
         if seed is not None:
             np.random.seed(seed)
@@ -67,7 +82,6 @@ class Word2VecModel:
         with open(self.path_description, "r") as f:
             description = f.read()
         log += "The following training data was used:\n{}\n".format(description)
-
         if n_models is not None:
             log += "Bootstrapped ensemble used {}% of the original documents (subsampled with replacement)" \
                    "to train each embedding.\n".format(100 * share_of_original_data, len(self.training_data))
