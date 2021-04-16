@@ -62,7 +62,7 @@ def extract_clean_sentences(path_to_json,
         raise ValueError(f"File {output_path} exists already.")
 
     # load a json reader that can read files line-by-line
-    data_loader = open('/home/maria/Desktop/POLARIZATION/DATA/articles-march-2021.jl')
+    data_loader = open(path_to_json)
 
     print("Start cleaning documents...")
 
