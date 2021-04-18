@@ -130,6 +130,8 @@ def clean(path_to_json,
         if idx % 10000 == 0:
             print("...cleaned first ", idx, " documents...")
 
+    data_loader.close()
+
     # document what has been done during pre-processing and save as file
     description = "Data was loaded from file {}. \n".format(path_to_json)
     description += "Data preprocessing included the following steps: \n"

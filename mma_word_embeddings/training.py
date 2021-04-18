@@ -2,7 +2,7 @@
 import os
 import numpy as np
 from gensim.models import Word2Vec
-from random import shuffle
+from random import seed, shuffle
 
 
 class DataGenerator(object):
@@ -54,38 +54,17 @@ class DataGenerator(object):
                 yield el
 
 
-def data_generator(path, share_of_original_data=None):
-    """iterator over the lines of the data
-
-    Args:
-        path (str): path to data file, one sentence/document per line
-
-    """
-
-    with open(path, "r") as f:
-        for line in f:
-            if share_of_original_data is None:
-                yield line.strip().split(" ")
-
-            else:
-                # only return line if in some cases
-                if np.random.rand() > share_of_original_data:
-                    continue
-                else:
-                    yield line.strip().split(" ")
-
-
 def train_word2vec_model(
         path_training_data,
         output_path,
         hyperparameters={},
         n_models=1,
-        share_of_original_data=None,
-        sample_with_replacement=False,
+        share_of_original_data=1.,
+        random_buffer_size=1000,
         path_pretraining_data=None,
         len_training_data=None,
         path_description=None,
-        seed=None,
+        data_seed=None,
 ):
     """Trains a single embedding or an ensemble of embeddings.
 
@@ -94,37 +73,41 @@ def train_word2vec_model(
             be automatically added)
         hyperparameters (dict): dictionary of hyperparameters that are directly fed into Word2Vec model
         n_models (int): number of models to train
-        share_of_original_data (float or None): if float, this is interpreted as the ratio of sentences sampled
-            for training versus the number of sentences in the training data set; if None then the training
-            data is not subsampled at all
-        sample_with_replacement (bool): if True (and if share_of_original_data is not None),
-            sample sentences with replacement
+        share_of_original_data (float): each line loaded from the data file is discarded
+            with this ratio; use 1. to use all data
+        random_buffer_size (int): Keep so many lines from the data file in a buffer from which
+            the samples are returned at random. Higher values take more memory but lead to more randomness
+            when sampling the data. A value equal to the number of all samples would lead to perfectly
+            random samples.
         path_pretraining_data (str): if model should get pre-trained, specify this path to the pretraining data set
         len_training_data (int): pretraining requires this estimate of the length of the training data
-        seed (int): random seed set for sampling
+        data_seed (int): random seed set for sampling
     """
+    # fix the seed of data sampling
+    if data_seed is not None:
+        seed(data_seed)
 
-    if seed is not None:
-        np.random.seed(seed)
+    # try to infer path for description file
     if path_description is None:
         path_description = path_training_data[:-18] + "-description.txt"
-
-    if not os.path.exists(output_path):
-        raise ValueError(f"Description file {output_path} not found.")
+    if not os.path.exists(path_description):
+        raise ValueError(f"Description file {path_description} not found.")
 
     for m in range(n_models):
 
         print("Training model ", m + 1)
-        training_generator = data_generator(path_training_data, share_of_original_data)
+        training_generator = DataGenerator(path_training_data,
+                                           share_of_original_data,
+                                           random_buffer_size)
 
         if path_pretraining_data is None:
             # do not pretrain
-            model = Word2Vec(corpus_file=training_generator, **hyperparameters)
+            model = Word2Vec(sentences=training_generator, **hyperparameters)
 
         else:
-            pretraining_generator = data_generator(path_pretraining_data)
-            model = Word2Vec(corpus_file=pretraining_generator, **hyperparameters)
-            model.train(corpus_file=training_generator, total_examples=len_training_data, epochs=model.epochs)
+            pretraining_generator = DataGenerator(path_pretraining_data, 1.0, random_buffer_size)
+            model = Word2Vec(sentences=pretraining_generator, **hyperparameters)
+            model.train(sentences=training_generator, total_examples=len_training_data, epochs=model.epochs)
 
         # normalise the word vectors
         model.wv.init_sims(replace=True)
@@ -134,9 +117,10 @@ def train_word2vec_model(
         # save the current embedding
         path = output_path + "-" + str(m) + ".emb"
         if os.path.isfile(path):
+            path = output_path + "-" + str(m) + "-alt.emb"
             raise ValueError(
-                "Embedding {} already exists. Choose a different name or delete existing model.".format(
-                    path))
+                "Path for embedding {} already exists. Renamed path to {}.".format(
+                    m, path))
         emb.save(path)
 
     # update description
@@ -144,9 +128,8 @@ def train_word2vec_model(
     with open(path_description, "r") as f:
         description = f.read()
     log += "The following training data was used:\n{}\n".format(description)
-    if n_models is not None:
-        log += "Bootstrapped ensemble used {}% of the original documents (subsampled with replacement)" \
-               "to train each embedding.\n".format(100 * share_of_original_data)
+    log += "Used {}% of original data.\n".format(100 * share_of_original_data)
+    log += "Used a random buffer size of {} lines.\n".format(random_buffer_size)
     log += "The model generating the embedding was trained with the following " \
            "hyperparameters: \n {}\n".format(hyperparameters)
 
