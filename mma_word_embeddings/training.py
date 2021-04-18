@@ -92,6 +92,8 @@ def train_word2vec_model(
         path_description = path_training_data[:-18] + "-description.txt"
     if not os.path.exists(path_description):
         raise ValueError(f"Description file {path_description} not found.")
+    if not os.path.exists(output_path):
+        raise ValueError(f"Output path {output_path} does not exist.")
 
     for m in range(n_models):
 

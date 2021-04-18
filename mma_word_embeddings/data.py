@@ -62,10 +62,9 @@ def clean(path_to_json,
     if os.path.exists(output_path):
         raise ValueError(f"File {output_path} already exists.")
 
+    print("Start cleaning documents...")
     # load a json reader that can read files line-by-line
     data_loader = open(path_to_json)
-
-    print("Start cleaning documents...")
 
     for idx, row in enumerate(data_loader):
 
