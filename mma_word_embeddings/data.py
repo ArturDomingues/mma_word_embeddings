@@ -1,6 +1,5 @@
 # This file contains a class for data loading and analysing
 # MMA data provided as json files
-import pandas as pd
 from nltk.corpus import stopwords
 import nltk
 import string
@@ -39,12 +38,13 @@ def head(path_to_json, n=5):
     return entries
 
 
-def extract_clean_sentences(path_to_json,
-                            text_column,
-                            output_path,
-                            filter={},
-                            remove_stopwords=False,
-                            lemmatize=False):
+def clean(path_to_json,
+          text_column,
+          output_path,
+          filter={},
+          extract_sentences=True,
+          remove_stopwords=False,
+          lemmatize=False):
     """Save a preprocessed representation of the data to a new file.
 
     Args:
@@ -54,12 +54,13 @@ def extract_clean_sentences(path_to_json,
         filter (dict[str, list[str]]): Dictionary of column names as keys, and a list of strings
             to search for in the column as values. Only cells where at least one
             of the strings is found will be processed.
+        extract_sentences (bool): if true, save one sentence per line into the new file; else save one document per line
         remove_stopwords (bool): if true, remove standard stop words from training data
         lemmatize (bool): if true, replace words by their stems
     """
     # check if the output file already exists, to avoid overwriting
     if os.path.exists(output_path):
-        raise ValueError(f"File {output_path} exists already.")
+        raise ValueError(f"File {output_path} already exists.")
 
     # load a json reader that can read files line-by-line
     data_loader = open(path_to_json)
@@ -86,41 +87,45 @@ def extract_clean_sentences(path_to_json,
         # retrieve document in row
         document = row_dict[text_column]
 
-        # split into sentences
-        sentences = document.split(". ")
+        if extract_sentences:
+            subdocuments = document.split(". ")
+        else:
+            subdocuments = [document]
 
-        for sentence in sentences:
+        for chunk in subdocuments:
 
-            sentence = re.sub(r'\b[a-z]+(?:[A-Z][a-z]+)+\b', '', sentence)
+            chunk = re.sub(r'http\S+', '', chunk)
 
-            sentence = BeautifulSoup(sentence, "html.parser").text
+            chunk = re.sub(r'\b[a-z]+(?:[A-Z][a-z]+)+\b', '', chunk)
 
-            sentence = sentence.replace(r'\xad', '')
+            chunk = BeautifulSoup(chunk, "html.parser").text
 
-            sentence = sentence.replace('displayad', '')
+            chunk = chunk.replace(r'\xad', '')
 
-            sentence = ''.join(char for word in sentence for char in word
+            chunk = chunk.replace('displayad', '')
+
+            chunk = ''.join(char for word in chunk for char in word
                                if char not in PUNCTUATION)
 
             # split string into list of words separated by whitespace
-            sentence = sentence.split()
+            chunk = chunk.split()
 
-            sentence = [word for word in sentence if all(g not in word for g in GARBAGE)]
+            chunk = [word for word in chunk if all(g not in word for g in GARBAGE)]
 
             if remove_stopwords:
-                sentence = [word for word in sentence if word not in stop or word in STOPWORD_EXCEPTIONS]
+                chunk = [word for word in chunk if word not in stop or word in STOPWORD_EXCEPTIONS]
 
-            sentence = [word.lower() for word in sentence]
+            chunk = [word.lower() for word in chunk]
 
             if lemmatize:
                 lm = nltk.WordNetLemmatizer()
-                sentence = [lm.lemmatize(word) for word in sentence]
+                chunk = [lm.lemmatize(word) for word in chunk]
 
-            sentence = " ".join(sentence)
-            # save cleaned sentence in a row
-            if sentence:
+            chunk = " ".join(chunk)
+            # save cleaned chunk in a row
+            if chunk:
                 with open(output_path, 'a+') as f:
-                    f.write('%s\n' % sentence)
+                    f.write('%s\n' % chunk)
 
         if idx % 10000 == 0:
             print("...cleaned first ", idx, " documents...")
@@ -130,7 +135,8 @@ def extract_clean_sentences(path_to_json,
     description += "Data preprocessing included the following steps: \n"
     description += "The data was filtered, keeping only rows where the specified columns contain " \
                    "(at least one of) the following expression(s) {}. \n".format(filter)
-    description += "Split documents into sentences\n"
+    if extract_sentences:
+        description += "Split documents into sentences\n"
     description += r"...remove all words that have single upper case letters surrounded by lower case " \
                    r"letters (to get rid of javascript) " + "\n"
     description += r"...remove html formatting with BeautifulSoup (html.parser) " + "\n"
