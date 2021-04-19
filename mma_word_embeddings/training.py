@@ -115,7 +115,8 @@ def train_word2vec_model(
             the full dataset will be used for pre-training
         len_training_data (int): pretraining requires this estimate of the length of the training data
         path_description (str): path to a log file that is annotated
-        data_seed (int): random seed set for sampling
+        data_seed (int): Random seed set for sampling. When more than one model is created, the ith model
+         will use data_seed + i as a seed for the data.
     """
 
     # try to infer path for description file
@@ -134,7 +135,7 @@ def train_word2vec_model(
                                            share_of_original_data,
                                            chunk_size,
                                            random_buffer_size,
-                                           data_seed)
+                                           data_seed + m)
 
         if path_pretraining_data is None:
             # do not pretrain
