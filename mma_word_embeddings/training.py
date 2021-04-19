@@ -86,6 +86,7 @@ def train_word2vec_model(
             random samples.
         path_pretraining_data (str): if model should get pre-trained, specify this path to the pretraining data set
         len_training_data (int): pretraining requires this estimate of the length of the training data
+        path_description (str): path to a log file that is annotated
         data_seed (int): random seed set for sampling
     """
 
