@@ -8,7 +8,8 @@ from random import seed, shuffle
 class DataGenerator(object):
     def __init__(self, path_to_data,
                  share_of_original_data=1.,
-                 random_buffer_size=1000):
+                 random_buffer_size=1000,
+                 data_seed=42):
         """Iterator that loads a lines from a file.
         Args:
             path_to_data (str): Full path to a data file with one preprocessed sentence/document per line.
@@ -21,6 +22,10 @@ class DataGenerator(object):
         self.path_to_data = path_to_data
         self.share_of_original_data = share_of_original_data
         self.random_buffer_size = random_buffer_size
+
+        # fix the seed of data sampling, so that multiple passes will create
+        # the same random selection of articles
+        seed(data_seed)
 
     def __iter__(self):
 
@@ -83,31 +88,30 @@ def train_word2vec_model(
         len_training_data (int): pretraining requires this estimate of the length of the training data
         data_seed (int): random seed set for sampling
     """
-    # fix the seed of data sampling
-    if data_seed is not None:
-        seed(data_seed)
 
     # try to infer path for description file
     if path_description is None:
         path_description = path_training_data[:-18] + "-description.txt"
     if not os.path.exists(path_description):
         raise ValueError(f"Description file {path_description} not found.")
-    if not os.path.exists(output_path):
-        raise ValueError(f"Output path {output_path} does not exist.")
+    dirname = os.path.dirname(output_path)
+    if not os.path.exists(dirname):
+        raise ValueError(f"Directory {dirname} does not exist.")
 
     for m in range(n_models):
 
         print("Training model ", m + 1)
         training_generator = DataGenerator(path_training_data,
                                            share_of_original_data,
-                                           random_buffer_size)
+                                           random_buffer_size,
+                                           data_seed)
 
         if path_pretraining_data is None:
             # do not pretrain
             model = Word2Vec(sentences=training_generator, **hyperparameters)
 
         else:
-            pretraining_generator = DataGenerator(path_pretraining_data, 1.0, random_buffer_size)
+            pretraining_generator = DataGenerator(path_pretraining_data, 1.0, random_buffer_size, data_seed)
             model = Word2Vec(sentences=pretraining_generator, **hyperparameters)
             model.train(sentences=training_generator, total_examples=len_training_data, epochs=model.epochs)
 
@@ -137,3 +141,4 @@ def train_word2vec_model(
 
     with open(path_description, "w") as f:
         f.write(log)
+    print("Done")
