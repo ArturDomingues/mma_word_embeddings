@@ -7,24 +7,33 @@ from random import seed, shuffle
 
 class DataGenerator(object):
     def __init__(self, path_to_data,
-                 share_of_original_data=1.,
-                 random_buffer_size=1000,
+                 share_of_original_data,
+                 chunk_size,
+                 random_buffer_size,
                  data_seed=42):
         """Iterator that loads a lines from a file.
         Args:
             path_to_data (str): Full path to a data file with one preprocessed sentence/document per line.
             share_of_original_data (float):  and picks each line with probability share_of_original_data, which
                 effectively results in a dataset with approx n_data*share_of_original_data samples
-            random_buffer_size (int): keeps multiple files in a list from which the
-                next element is randomly chosen, and replaced by the next line from the
-                data file
+            chunk_size (int): Return so many lines from the random buffer at once before filling it up again. Larger
+                chunk sizes speed up training, but decrease randomness.
+            random_buffer_size (int): Keep so many lines from the data file in a buffer which is shuffled before
+                returning the samples in a chunk. Higher values take more RAM but lead to more randomness
+                when sampling the data. A value equal to the number of all samples would lead to perfectly
+                random samples.
         """
+        if chunk_size > random_buffer_size:
+            raise ValueError("Chunk size cannot be larger than the buffer size.")
+
         self.path_to_data = path_to_data
         self.share_of_original_data = share_of_original_data
+        self.chunk_size = chunk_size
         self.random_buffer_size = random_buffer_size
 
-        # fix the seed of data sampling, so that multiple passes will create
-        # the same random selection of articles
+        # fix the seed of data sampling, so that multiple creations of this iterator
+        # during training will create
+        # the same random selection of lines
         seed(data_seed)
 
     def __iter__(self):
@@ -32,29 +41,44 @@ class DataGenerator(object):
         # load initial buffer
         buffer = []
         with open(self.path_to_data, "r") as f:
+
+            # fill buffer for the first time
             for i in range(self.random_buffer_size):
                 line = f.readline().strip().split(" ")
                 buffer.append(line)
 
-            # continue with line random_buffer_size+1
-            for line in f:
+            reached_end = False
+            while not reached_end:
 
+                # randomise the buffer
                 shuffle(buffer)
-                # remove first element from shuffled list
-                pick = buffer.pop(0)
 
-                # fill buffer with new element
-                buffer.append(line.strip().split(" "))
+                # remove and return chunk from buffer
+                for i in range(self.chunk_size):
+                    # separate non-bootstrap case here for speed
+                    if self.share_of_original_data == 1.0:
+                        yield buffer.pop(0)
+                    else:
+                        # randomly decide whether this line is in
+                        # the bootstrapped data
+                        if np.random.rand() > self.share_of_original_data:
+                            continue
+                        else:
+                            yield buffer.pop(0)
 
-                # randomly drop the element and move to the next
-                if np.random.rand() > self.share_of_original_data:
-                    continue
-
-                # else return the picked one
-                yield pick
+                # fill up the buffer with a fresh chunk
+                for i in range(self.chunk_size):
+                    line = f.readline()
+                    if not line:
+                        reached_end = True
+                        break
+                    else:
+                        buffer.append(line.strip().split(" "))
 
             # if end of file has been reached
             # yield all elements left in the buffer
+            # in random order
+            shuffle(buffer)
             for el in buffer:
                 yield el
 
@@ -65,7 +89,8 @@ def train_word2vec_model(
         hyperparameters={},
         n_models=1,
         share_of_original_data=1.,
-        random_buffer_size=1000,
+        chunk_size=10000,
+        random_buffer_size=100000,
         path_pretraining_data=None,
         len_training_data=None,
         path_description=None,
@@ -80,11 +105,14 @@ def train_word2vec_model(
         n_models (int): number of models to train
         share_of_original_data (float): each line loaded from the data file is discarded
             with this ratio; use 1. to use all data
-        random_buffer_size (int): Keep so many lines from the data file in a buffer from which
-            the samples are returned at random. Higher values take more memory but lead to more randomness
+        chunk_size (int): Return so many lines from the random buffer at once before filling it up again. Larger
+            chunk sizes speed up training, but decrease randomness.
+        random_buffer_size (int): Keep so many lines from the data file in a buffer which is shuffled before
+            returning the samples in a chunk. Higher values take more RAM but lead to more randomness
             when sampling the data. A value equal to the number of all samples would lead to perfectly
             random samples.
-        path_pretraining_data (str): if model should get pre-trained, specify this path to the pretraining data set
+        path_pretraining_data (str): if model should get pre-trained, specify this path to the pretraining data set;
+            the full dataset will be used for pre-training
         len_training_data (int): pretraining requires this estimate of the length of the training data
         path_description (str): path to a log file that is annotated
         data_seed (int): random seed set for sampling
@@ -104,6 +132,7 @@ def train_word2vec_model(
         print("Training model ", m + 1)
         training_generator = DataGenerator(path_training_data,
                                            share_of_original_data,
+                                           chunk_size,
                                            random_buffer_size,
                                            data_seed)
 
@@ -112,7 +141,11 @@ def train_word2vec_model(
             model = Word2Vec(sentences=training_generator, **hyperparameters)
 
         else:
-            pretraining_generator = DataGenerator(path_pretraining_data, 1.0, random_buffer_size, data_seed)
+            pretraining_generator = DataGenerator(path_pretraining_data,
+                                                  1.0,
+                                                  chunk_size,
+                                                  random_buffer_size,
+                                                  data_seed)
             model = Word2Vec(sentences=pretraining_generator, **hyperparameters)
             model.train(sentences=training_generator, total_examples=len_training_data, epochs=model.epochs)
 
@@ -136,7 +169,7 @@ def train_word2vec_model(
         description = f.read()
     log += "The following training data was used:\n{}\n".format(description)
     log += "Used {}% of original data.\n".format(100 * share_of_original_data)
-    log += "Used a random buffer size of {} lines.\n".format(random_buffer_size)
+    log += "Used a random buffer size of {} lines and chunks of size {}.\n".format(random_buffer_size, chunk_size)
     log += "The model generating the embedding was trained with the following " \
            "hyperparameters: \n {}\n".format(hyperparameters)
 
