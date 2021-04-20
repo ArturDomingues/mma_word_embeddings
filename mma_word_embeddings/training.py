@@ -62,6 +62,8 @@ class DataGenerator(object):
                         # randomly decide whether this line is in
                         # the bootstrapped data
                         if np.random.rand() > self.share_of_original_data:
+                            # remove anyways
+                            buffer.pop(0)
                             continue
                         else:
                             yield buffer.pop(0)
