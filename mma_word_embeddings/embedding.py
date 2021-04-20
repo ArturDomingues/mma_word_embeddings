@@ -65,7 +65,7 @@ class WordEmbedding:
                 raise ValueError("n_grams arguemnt must be between 1 and 100. ")
 
             voc = []
-            for word in self.vocab():
+            for word in self._word_vectors.key_to_index:
                 if word.count("_") == n_grams - 1:
                     voc.append(word)
         else:
@@ -104,7 +104,7 @@ class WordEmbedding:
             vocab = self.vocab_sorted_by_frequency_in_training_data(more_frequent_than=min_frequency)
             vocab = vocab['Word'].tolist()
         else:
-            vocab = self.vocab()
+            vocab = list(self._word_vectors.key_to_index)
 
         return sample(vocab, n_words)
 
@@ -214,11 +214,11 @@ class WordEmbedding:
                                  "Please load the training data with the 'load_training_data()' "
                                  "function and then try again. ")
 
-            subset = [[w, self.frequency_in_training_data(w)] for w in sorted(list(self._word_vectors.vocab)) if word_part in w]
+            subset = [[w, self.frequency_in_training_data(w)] for w in sorted(list(self._word_vectors.key_to_index)) if word_part in w]
             subset = pd.DataFrame(subset, columns=["Word", "Frequency"])
             subset = subset.sort_values(by='Frequency', axis=0, ascending=False)
         else:
-            subset = [w for w in sorted(list(self._word_vectors.vocab)) if word_part in w]
+            subset = [w for w in sorted(list(self._word_vectors.key_to_index)) if word_part in w]
         return subset
 
     def vector(self, word):
@@ -379,7 +379,7 @@ class WordEmbedding:
         """
 
         if list_of_words is None:
-            list_of_words = self.vocab()
+            list_of_words = self.key_to_index
 
         principal_vecs = self.principal_components(list_of_words, n_components=n_components, normalize=True)
 
