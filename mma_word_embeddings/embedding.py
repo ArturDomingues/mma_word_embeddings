@@ -747,7 +747,7 @@ class WordEmbedding:
         if include_princ_comp is not None:
             if not isinstance(include_princ_comp, int):
                 raise ValueError("invclude_princ_comp must be an integer like 1, 2, 3...")
-            extra_vecs.extend(self.principal_component_vectors(list_of_words))
+            extra_vecs.extend(self.principal_components(list_of_words))
             for i in range(include_princ_comp):
                 extra_words.append('princ_comp' + str(i))
         if include_diff_vectors is not None:

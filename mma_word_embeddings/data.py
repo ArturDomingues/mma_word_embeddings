@@ -44,23 +44,30 @@ def clean(path_to_json,
           filter={},
           extract_sentences=True,
           remove_stopwords=False,
-          lemmatize=False):
+          lemmatize=False,
+          agent_column=None):
     """Save a preprocessed representation of the data to a new file.
 
     Args:
         path_to_json (str): full path to json-lines (.jl or .jsonl) file that contains the original data
         text_column (str): name of the column that contains the documents
-        output_path (str): full path to save training data and description to; does not contain a file ending
+        output_path (str): path to save training data and description to; does not contain a file ending
         filter (dict[str, list[str]]): Dictionary of column names as keys, and a list of strings
             to search for in the column as values. Only cells where at least one
             of the strings is found will be processed.
         extract_sentences (bool): if true, save one sentence per line into the new file; else save one document per line
         remove_stopwords (bool): if true, remove standard stop words from training data
         lemmatize (bool): if true, replace words by their stems
+        agent_column (None or str): if string, represents the name of the agent column;
+            append text in text_column with agent tag before cleaning the data
     """
     # check if the output file already exists, to avoid overwriting
-    if os.path.exists(output_path):
-        raise ValueError(f"File {output_path} already exists.")
+    output_train = output_path + "_training-data.txt"
+    if os.path.exists(output_train):
+        raise ValueError(f"File {output_train} already exists.")
+    output_description = output_path + "_description.txt"
+    if os.path.exists(output_description):
+        raise ValueError(f"File {output_description} already exists.")
 
     print("Start cleaning documents...")
     # load a json reader that can read files line-by-line
@@ -93,6 +100,11 @@ def clean(path_to_json,
 
         for chunk in subdocuments:
 
+            if agent_column is not None:
+                # prepend with agent tag
+                name = row_dict[agent_column].strip().replace(" ", "_")
+                chunk = "agent_" + name + " " + chunk
+
             chunk = re.sub(r'http\S+', '', chunk)
 
             chunk = re.sub(r'\b[a-z]+(?:[A-Z][a-z]+)+\b', '', chunk)
@@ -123,7 +135,7 @@ def clean(path_to_json,
             chunk = " ".join(chunk)
             # save cleaned chunk in a row
             if chunk:
-                with open(output_path, 'a+') as f:
+                with open(output_train, 'a+') as f:
                     f.write('%s\n' % chunk)
 
         if idx % 10000 == 0:
@@ -134,10 +146,13 @@ def clean(path_to_json,
     # document what has been done during pre-processing and save as file
     description = "Data was loaded from file {}. \n".format(path_to_json)
     description += "Data preprocessing included the following steps: \n"
-    description += "The data was filtered, keeping only rows where the specified columns contain " \
-                   "(at least one of) the following expression(s) {}. \n".format(filter)
+    if filter != {}:
+        description += "The data was filtered, keeping only rows where the specified columns contain " \
+                       "(at least one of) the following expression(s) {}. \n".format(filter)
     if extract_sentences:
-        description += "Split documents into sentences\n"
+        description += "Split documents into sentences...\n"
+    if agent_column is not None:
+        description += "...prepend with agent tag...\n"
     description += r"...remove all words that have single upper case letters surrounded by lower case " \
                    r"letters (to get rid of javascript) " + "\n"
     description += r"...remove html formatting with BeautifulSoup (html.parser) " + "\n"
@@ -152,7 +167,7 @@ def clean(path_to_json,
     if lemmatize:
         description += r"...lemmatize words with nltk's WordNetLemmatizer, " + "\n"
 
-    with open(output_path[:-4] + '-description.txt', 'a') as f:
+    with open(output_description, 'a') as f:
         f.write('%s' % description)
 
 
@@ -221,3 +236,57 @@ def make_ngrams(input_path, description_path=None, min_count_ngrams=50, threshol
     if description_path is not None:
         with open(description_path, 'a') as f:
             f.write('%s' % description)
+
+
+def extract(path_to_json,
+            output_path,
+            filter):
+    """Save a preprocessed representation of the data to a new file.
+
+    Args:
+        path_to_json (str): full path to json-lines (.jl or .jsonl) file that contains the original data
+        output_path (str): full path to save training data and description to; does not contain a file ending
+        filter (dict[str, list[str]]): Dictionary of column names as keys, and a list of strings
+            to search for in the column as values. Only cells where at least one
+            of the strings is found will be processed.
+    """
+    # check if the output file already exists, to avoid overwriting
+    if os.path.exists(output_path):
+        raise ValueError(f"File {output_path} already exists.")
+
+    print("Start filtering documents...")
+    # load a json reader that can read files line-by-line
+    data_loader = open(path_to_json)
+
+    for idx, row in enumerate(data_loader):
+
+        if not row:
+            break
+
+        # turn string into dictionary of the
+        # form {'column_1': content1, 'column_2': content2,...}
+        row_dict = json.loads(row)
+
+        # apply filter
+        ignore_row = False
+        for column_name, string_list in filter.items():
+            at_least_one_string_matches = any(s in row_dict[column_name] for s in string_list)
+            if not at_least_one_string_matches:
+                ignore_row = True
+
+        if idx % 100000 == 0 and idx != 0:
+            print("...filtered first ", idx, " documents...")
+
+        if ignore_row:
+            # go to next iteration
+            continue
+
+        with open(output_path, 'a+') as f:
+            json.dump(row_dict, f)
+            f.write("\n")
+
+    data_loader.close()
+
+    description = f"Filtered data set {path_to_json} with filter: \n {filter}"
+    with open(output_path[:-4] + '-description.txt', 'w') as f:
+        f.write('%s' % description)

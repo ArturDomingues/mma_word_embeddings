@@ -121,15 +121,23 @@ def train_word2vec_model(
          will use data_seed + i as a seed for the data.
     """
 
-    # try to infer path for description file
+    # check paths before starting costly training
+
     if path_description is None:
         path_description = path_training_data[:-18] + "-description.txt"
     if not os.path.exists(path_description):
         raise ValueError(f"Description file {path_description} not found.")
+
     dirname = os.path.dirname(output_path)
     if not os.path.exists(dirname):
         raise ValueError(f"Directory {dirname} does not exist.")
 
+    for m in range(n_models):
+        path = output_path + "-" + str(m) + ".emb"
+        if os.path.isfile(path):
+            raise ValueError("Path for embedding {} already exists.".format(m, path))
+
+    # Start training
     for m in range(n_models):
 
         print("Training model ", m + 1)
@@ -159,11 +167,10 @@ def train_word2vec_model(
 
         # save the current embedding
         path = output_path + "-" + str(m) + ".emb"
+        # just to be sure!
         if os.path.isfile(path):
             path = output_path + "-" + str(m) + "-alt.emb"
-            raise ValueError(
-                "Path for embedding {} already exists. Renamed path to {}.".format(
-                    m, path))
+            print("Path for embedding {} already exists. Renamed path to {}.".format(m, path))
         emb.save(path)
 
     # update description
@@ -173,9 +180,10 @@ def train_word2vec_model(
     log += "The following training data was used:\n{}\n".format(description)
     log += "Used {}% of original data.\n".format(100 * share_of_original_data)
     log += "Used a random buffer size of {} lines and chunks of size {}.\n".format(random_buffer_size, chunk_size)
+    log += f"Used the data seed {data_seed}."
     log += "The model generating the embedding was trained with the following " \
            "hyperparameters: \n {}\n".format(hyperparameters)
 
-    with open(path_description, "w") as f:
+    with open(output_path + "-description.txt", "w") as f:
         f.write(log)
     print("Done")
