@@ -14,7 +14,8 @@ import glob
 import seaborn as sns
 import networkx as nx
 import scipy.cluster.hierarchy as sch
-
+from scipy.stats import pearsonr
+import os
 
 # Make pandas print full data frame
 pd.set_option('display.max_rows', None)
@@ -119,7 +120,8 @@ class WordEmbedding:
                                  "Please load the training data with the 'load_training_data()' "
                                  "function and then try again. ")
 
-            subset = [[w, self.frequency_in_training_data(w)] for w in sorted(list(self._word_vectors.key_to_index)) if word_part in w]
+            subset = [[w, self.frequency_in_training_data(w)] for w in sorted(list(self._word_vectors.key_to_index)) if
+                      word_part in w]
             subset = pd.DataFrame(subset, columns=["Word", "Frequency"])
             subset = subset.sort_values(by='Frequency', axis=0, ascending=False)
         else:
@@ -292,7 +294,7 @@ class WordEmbedding:
         data = {}
 
         for idx, vec in enumerate(principal_vecs):
-            data['princ_comp' + str(idx+1)] = self.most_similar([vec], n=n)
+            data['princ_comp' + str(idx + 1)] = self.most_similar([vec], n=n)
 
         df = pd.DataFrame(data)
         return df
@@ -411,11 +413,11 @@ class WordEmbedding:
 
                 centroid_left_cluster = self.centroid_of_vectors(dim_clusters[0])
                 centroid_right_cluster = self.centroid_of_vectors(dim_clusters[1])
-                
+
                 if normalize_centroids:
-                    centroid_left_cluster = centroid_left_cluster/np.linalg.norm(centroid_left_cluster)
-                    centroid_right_cluster = centroid_right_cluster/np.linalg.norm(centroid_right_cluster)
-                    
+                    centroid_left_cluster = centroid_left_cluster / np.linalg.norm(centroid_left_cluster)
+                    centroid_right_cluster = centroid_right_cluster / np.linalg.norm(centroid_right_cluster)
+
                 diff = centroid_left_cluster - centroid_right_cluster
                 if normalize_before:
                     diff = normalize_vector(diff)
@@ -514,7 +516,7 @@ class WordEmbedding:
             principal_vecs[dim_name] = p_vecs
 
             for idx, vec in enumerate(p_vecs):
-                cols += ["{}-P{}".format(dim_name, idx+1)]
+                cols += ["{}-P{}".format(dim_name, idx + 1)]
                 print("{}-P{} is similar to: ".format(dim_name, idx), self.most_similar([vec], n=n))
 
         data = []
@@ -562,7 +564,8 @@ class WordEmbedding:
     def plot_distance_graph(self, list_of_words, nonlinear=False, scaling=2, padding=1.2):
         """Plot a network where edge length shows the similarity between words"""
         if nonlinear:
-            covariance_list = [np.tanh(scaling*self.similarity(word1, word2)) for word1, word2 in product(list_of_words, repeat=2)]
+            covariance_list = [np.tanh(scaling * self.similarity(word1, word2)) for word1, word2 in
+                               product(list_of_words, repeat=2)]
         else:
             covariance_list = [self.similarity(word1, word2) for word1, word2 in product(list_of_words, repeat=2)]
         covariance = np.array(covariance_list).reshape(len(list_of_words), len(list_of_words))
@@ -570,8 +573,8 @@ class WordEmbedding:
         mapping = {i: word for i, word in enumerate(list_of_words)}
         graph = nx.relabel_nodes(graph, mapping)
         pos = nx.spring_layout(graph, scale=0.2)
-        nx.draw_networkx_nodes(graph, pos,node_size=15, node_color='lightgray')
-        nx.draw_networkx_edges(graph, pos,  edge_color='lightgray')
+        nx.draw_networkx_nodes(graph, pos, node_size=15, node_color='lightgray')
+        nx.draw_networkx_edges(graph, pos, edge_color='lightgray')
         y_off = 0.01
         nx.draw_networkx_labels(graph, pos={k: ([v[0], v[1] + y_off]) for k, v in pos.items()})
         xmax = padding * max(xx for xx, yy in pos.values())
@@ -587,7 +590,7 @@ class WordEmbedding:
                              normalize=False, min=-1):
         """Plot a matrix where each value shows the similarity between words"""
         if nonlinear:
-            covariance_list = [np.tanh(nl_scaling*self.similarity(word1, word2))
+            covariance_list = [np.tanh(nl_scaling * self.similarity(word1, word2))
                                for word1, word2 in product(list_of_words, repeat=2)]
         else:
             covariance_list = [self.similarity(word1, word2) for word1, word2 in product(list_of_words, repeat=2)]
@@ -696,12 +699,119 @@ class WordEmbedding:
         plt.xlabel("dimension in embedding space")
         plt.show()
 
-    def score_analogy_test(self, average=False):
+    def score_analogy_test(self, n=10, full_output=False):
         """Compute the scores of different analogy tests from Google Analogy dataset
-        http://download.tensorflow.org/data/questions-words.txt."""
+        http://download.tensorflow.org/data/questions-words.txt.
 
-    def score_similarity_test(self, average=False):
-        """Compute the scores of the wordsim similarity tests"""
+        Args:
+            n (int): number of closest neighbours to search word in
+            full_output (bool): whether to print the full output
+
+        """
+
+        file_path = os.path.dirname(__file__)
+
+        tests = [
+            'capital-common-countries',
+            'capital-world',
+            'city-in-state',
+            'currency',
+            'family',
+            'gram1-adjective-to-adverb',
+            'gram2-opposite',
+            'gram3-comparative',
+            'gram4-superlative',
+            'gram5-present-participle',
+            'gram6-nationality-adjective',
+            'gram7-past-tense',
+            'gram8-plural',
+            'gram9-plural-verbs'
+        ]
+
+        tasks = []
+        ratio_in_vocab = []
+        precisions = []
+        for test in tests:
+
+            with open(file_path + '/datasets/' + test + '.txt', 'r') as f:
+                analogies = f.readlines()
+                analogies = [i.strip('\n').split(' ') for i in analogies]
+
+            results = []
+            for analogy in analogies:
+                if not all([self.in_vocab(a) for a in analogy]):
+                    results.append(np.nan)
+                else:
+                    res = self.analogy_test(negative_list=analogy[0:1],
+                                            positive_list=analogy[1:3],
+                                            test_word=analogy[3:4],
+                                            n=n)
+                    results.append(res)
+
+            tasks.append(test)
+            ratio = 1-results.count(np.nan)/len(results)
+            ratio_in_vocab.append(ratio)
+            if ratio == 0.0:
+                precisions.append(np.nan)
+            else:
+                precisions.append(np.mean([r for r in results if not np.isnan(r)]))
+
+        if full_output:
+            df = pd.DataFrame({'task': tasks,
+                               'ratio_in_vocab': ratio_in_vocab,
+                               'precisions': precisions})
+            return df
+        else:
+            return np.mean([p for p in precisions if not np.isnan(p)])
+
+    def score_similarity_test(self, full_output=False):
+        """Compute the scores of the wordsim similarity tests (relatedness and similarity goldstandard).
+        Args:
+            full_output (bool): if true, return a dataframe with the detailed results;
+                else return the pearson-r coefficient that measures the correlation between predicted and
+                target similarities
+
+        Return:
+            Dataframe or float
+        """
+        file_path = os.path.dirname(__file__)
+        with open(file_path + '/datasets/wordsim_relatedness_goldstandard.txt', 'r') as f:
+            relatedness = f.readlines()
+            relatedness = [i.strip('\n').split('\t') for i in relatedness]
+
+        with open(file_path + '/datasets/wordsim_similarity_goldstandard.txt', 'r') as f:
+            similarity = f.readlines()
+            similarity = [i.strip('\n').split('\t') for i in similarity]
+
+        words1 = []
+        words2 = []
+        targets = []
+        predictions = []
+        for smpl in relatedness + similarity:
+            word1 = smpl[0]
+            word2 = smpl[1]
+
+            if self.in_vocab(word1) and self.in_vocab(word2):
+                prediction = self.similarity(word1, word2)
+            else:
+                prediction = np.nan
+
+            words1.append(word1)
+            words2.append(word2)
+            targets.append(float(smpl[2]))
+            predictions.append(prediction)
+
+        if full_output:
+            df = pd.DataFrame({'word1': words1,
+                               'word2': words2,
+                               'target': targets,
+                               'prediction': predictions})
+            return df
+        else:
+            targets_no_nan = [t for t, p in zip(targets, predictions) if not np.isnan(p)]
+            predictions_no_nan = [p for p in predictions if not np.isnan(p)]
+
+            return pearsonr(targets_no_nan, predictions_no_nan)[0]
 
 
 class EmbeddingEnsemble:
@@ -873,7 +983,7 @@ class EmbeddingEnsemble:
         Returns:
             bool or list[bool]: If aggregate is false return a list of individual test results. If it is true,
                 we check whether the test word is in the first m words of the list produced by
-                analogy(positive_list, negative_list, n=n, aggregate=True).
+                analogy_test(positive_list, negative_list, n=n).
         """
 
         if aggregate:
@@ -960,9 +1070,118 @@ class EmbeddingEnsemble:
         else:
             return individual
 
-    def score_analogy_test(self, average=False, aggregate=True):
+    def score_analogy_test(self, n=10, m=10, full_output=False):
         """Compute the scores of different analogy tests from Google Analogy dataset
-        http://download.tensorflow.org/data/questions-words.txt."""
+        http://download.tensorflow.org/data/questions-words.txt.
 
-    def score_similarity_test(self, average=False, aggregate=True):
-        """Compute the scores of the wordsim similarity tests"""
+        Args:
+            n (int): number of closest neighbours to search word in
+            full_output (bool): whether to print the full output
+
+        """
+
+        file_path = os.path.dirname(__file__)
+
+        tests = [
+            'capital-common-countries',
+            'capital-world',
+            'city-in-state',
+            'currency',
+            'family',
+            'gram1-adjective-to-adverb',
+            'gram2-opposite',
+            'gram3-comparative',
+            'gram4-superlative',
+            'gram5-present-participle',
+            'gram6-nationality-adjective',
+            'gram7-past-tense',
+            'gram8-plural',
+            'gram9-plural-verbs'
+        ]
+
+        tasks = []
+        ratio_in_vocab = []
+        precisions = []
+        for test in tests:
+
+            with open(file_path + '/datasets/' + test + '.txt', 'r') as f:
+                analogies = f.readlines()
+                analogies = [i.strip('\n').split(' ') for i in analogies]
+
+            results = []
+            for analogy in analogies:
+                if not all([self.in_vocab(a) for a in analogy]):
+                    results.append(np.nan)
+                else:
+                    res = self.analogy_test(negative_list=analogy[0:1],
+                                            positive_list=analogy[1:3],
+                                            test_word=analogy[3:4],
+                                            n=n,
+                                            m=m,
+                                            aggregate=True)
+                    results.append(res)
+
+            tasks.append(test)
+            ratio = 1-results.count(np.nan)/len(results)
+            ratio_in_vocab.append(ratio)
+            if ratio == 0.0:
+                precisions.append(np.nan)
+            else:
+                precisions.append(np.mean([r for r in results if not np.isnan(r)]))
+
+        if full_output:
+            df = pd.DataFrame({'task': tasks,
+                               'ratio_in_vocab': ratio_in_vocab,
+                               'precisions': precisions})
+            return df
+        else:
+            return np.mean([p for p in precisions if not np.isnan(p)])
+
+    def score_similarity_test(self, full_output=False):
+        """Compute the scores of the wordsim similarity tests (relatedness and similarity goldstandard).
+        Args:
+            full_output (bool): if true, return a dataframe with the detailed results;
+                else return the pearson-r coefficient that measures the correlation between predicted and
+                target similarities
+
+        Return:
+            Dataframe or float
+        """
+        file_path = os.path.dirname(__file__)
+        with open(file_path + '/datasets/wordsim_relatedness_goldstandard.txt', 'r') as f:
+            relatedness = f.readlines()
+            relatedness = [i.strip('\n').split('\t') for i in relatedness]
+
+        with open(file_path + '/datasets/wordsim_similarity_goldstandard.txt', 'r') as f:
+            similarity = f.readlines()
+            similarity = [i.strip('\n').split('\t') for i in similarity]
+
+        words1 = []
+        words2 = []
+        targets = []
+        predictions = []
+        for smpl in relatedness + similarity:
+            word1 = smpl[0]
+            word2 = smpl[1]
+
+            if self.in_vocab(word1) and self.in_vocab(word2):
+                prediction = self.similarity(word1, word2, aggregate=True)
+            else:
+                prediction = np.nan
+
+            words1.append(word1)
+            words2.append(word2)
+            targets.append(float(smpl[2]))
+            predictions.append(prediction)
+
+        if full_output:
+            df = pd.DataFrame({'word1': words1,
+                               'word2': words2,
+                               'target': targets,
+                               'prediction': predictions})
+            return df
+        else:
+            targets_no_nan = [t for t, p in zip(targets, predictions) if not np.isnan(p)]
+            predictions_no_nan = [p for p in predictions if not np.isnan(p)]
+
+            return pearsonr(targets_no_nan, predictions_no_nan)[0]
