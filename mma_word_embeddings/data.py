@@ -1,5 +1,6 @@
 # This file contains a class for data loading and analysing
 # MMA data provided as json files
+import datetime
 from nltk.corpus import stopwords
 import nltk
 import string
@@ -75,6 +76,9 @@ def clean(path_to_json,
 
     for idx, row in enumerate(data_loader):
 
+        if not row:
+            break
+
         # turn string into dictionary of the
         # form {'column_1': content1, 'column_2': content2,...}
         row_dict = json.loads(row)
@@ -144,13 +148,14 @@ def clean(path_to_json,
     data_loader.close()
 
     # document what has been done during pre-processing and save as file
-    description = "Data was loaded from file {}. \n".format(path_to_json)
+    now = datetime.datetime.now()
+    description = "{} - Data was loaded from file {}. \n".format(now, path_to_json)
     description += "Data preprocessing included the following steps: \n"
     if filter != {}:
-        description += "The data was filtered, keeping only rows where the specified columns contain " \
+        description += "...filtered data, keeping only rows where the specified columns contain " \
                        "(at least one of) the following expression(s) {}. \n".format(filter)
     if extract_sentences:
-        description += "Split documents into sentences...\n"
+        description += "...split documents into sentences...\n"
     if agent_column is not None:
         description += "...prepend with agent tag...\n"
     description += r"...remove all words that have single upper case letters surrounded by lower case " \

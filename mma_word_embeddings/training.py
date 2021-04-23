@@ -121,26 +121,27 @@ def train_word2vec_model(
          will use data_seed + i as a seed for the data.
     """
 
-    # check paths before starting costly training
-
-    if path_description is None:
-        path_description = path_training_data[:-18] + "-description.txt"
-    if not os.path.exists(path_description):
-        raise ValueError(f"Description file {path_description} not found.")
-
+    # check paths before starting costly training ---------
     dirname = os.path.dirname(output_path)
     if not os.path.exists(dirname):
         raise ValueError(f"Directory {dirname} does not exist.")
 
     for m in range(n_models):
-        path = output_path + "-" + str(m) + ".emb"
-        if os.path.isfile(path):
-            raise ValueError("Path for embedding {} already exists.".format(m, path))
 
-    # Start training
+        path_out = output_path + "-" + str(m) + ".emb"
+        path_description_out = output_path + "-" + str(m) + "_description.txt"
+
+        # Check if already exists
+        if os.path.isfile(path_out):
+            raise ValueError("Path {} for description already exists.".format(path_out))
+        if os.path.isfile(path_description_out):
+            raise ValueError("Path {} for description already exists.".format(path_description_out))
+    # ---------------
+
     for m in range(n_models):
 
         print("Training model ", m + 1)
+
         training_generator = DataGenerator(path_training_data,
                                            share_of_original_data,
                                            chunk_size,
@@ -156,34 +157,34 @@ def train_word2vec_model(
                                                   1.0,
                                                   chunk_size,
                                                   random_buffer_size,
-                                                  data_seed)
+                                                  data_seed + m)
             model = Word2Vec(sentences=pretraining_generator, **hyperparameters)
             model.train(sentences=training_generator, total_examples=len_training_data, epochs=model.epochs)
 
         # normalise the word vectors
         model.wv.init_sims(replace=True)
-
+        # extract embedding
         emb = model.wv
 
         # save the current embedding
-        path = output_path + "-" + str(m) + ".emb"
+        path_out = output_path + "-" + str(m) + ".emb"
         # just to be sure!
-        if os.path.isfile(path):
-            path = output_path + "-" + str(m) + "-alt.emb"
-            print("Path for embedding {} already exists. Renamed path to {}.".format(m, path))
-        emb.save(path)
+        if os.path.isfile(path_out):
+            path_out = output_path + "-" + str(m) + "-alt.emb"
+            print("Path for embedding {} already exists. Renamed path to {}.".format(m, path_out))
+        emb.save(path_out)
 
-    # update description
-    log = ""
-    with open(path_description, "r") as f:
-        description = f.read()
-    log += "The following training data was used:\n{}\n".format(description)
-    log += "Used {}% of original data.\n".format(100 * share_of_original_data)
-    log += "Used a random buffer size of {} lines and chunks of size {}.\n".format(random_buffer_size, chunk_size)
-    log += f"Used the data seed {data_seed}."
-    log += "The model generating the embedding was trained with the following " \
-           "hyperparameters: \n {}\n".format(hyperparameters)
+        # save description
+        log = "The following training data was used:\n{}\n".format(path_training_data)
+        if path_pretraining_data is not None:
+            log += f"Model was pretrained with data loaded from: {path_pretraining_data}."
+        log += "Used {}% of original data.\n".format(100 * share_of_original_data)
+        log += "Used a random buffer size of {} lines and chunks of size {}.\n".format(random_buffer_size, chunk_size)
+        log += f"Used the data seed {data_seed}."
+        log += "The model generating the embedding was trained with the following " \
+               "hyperparameters: \n {}\n".format(hyperparameters)
 
-    with open(output_path + "-description.txt", "w") as f:
-        f.write(log)
-    print("Done")
+        with open(path_description, "w") as f:
+            f.write(log)
+
+
