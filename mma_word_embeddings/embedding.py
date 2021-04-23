@@ -810,7 +810,6 @@ class WordEmbedding:
         else:
             targets_no_nan = [t for t, p in zip(targets, predictions) if not np.isnan(p)]
             predictions_no_nan = [p for p in predictions if not np.isnan(p)]
-
             return pearsonr(targets_no_nan, predictions_no_nan)[0]
 
 
