@@ -299,18 +299,18 @@ class WordEmbedding:
         df = pd.DataFrame(data)
         return df
 
-    def analogy(self, positive_list, negative_list, n=10):
+    def analogy(self, negative_list, positive_list, n=10):
         """Returns words close to positive words and far away from negative words, as
         proposed in https://www.aclweb.org/anthology/W14-1618.pdf"""
-        return self._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
+        return self._word_vectors.most_similar(negative=negative_list, positive=positive_list, topn=n)
 
-    def analogy_test(self, positive_list, negative_list, test_word, n=10):
+    def analogy_test(self, negative_list, positive_list, test_word, n=10):
         """Check whether the test word appears in the n closest words to the vector resulting from
            an analogy computation as proposed in https://www.aclweb.org/anthology/W14-1618.pdf .
 
         Args:
-            positive_list (list[str]): list of positive words
-            negative_list (list[str]): list of negative words
+            negative_list (list[str]): list of negative words [a is to]
+            positive_list (list[str]): list of positive words [b like c]
             n (int): how many neighbours to compute
 
         Returns:
@@ -735,16 +735,16 @@ class WordEmbedding:
 
             with open(file_path + '/datasets/' + test + '.txt', 'r') as f:
                 analogies = f.readlines()
-                analogies = [i.strip('\n').split(' ') for i in analogies]
+                analogies = [i.lower().strip('\n').split(' ') for i in analogies]
 
             results = []
             for analogy in analogies:
                 if not all([self.in_vocab(a) for a in analogy]):
                     results.append(np.nan)
                 else:
-                    res = self.analogy_test(negative_list=analogy[0:1],
+                    res = self.analogy_test(negative_list=[analogy[0]],
                                             positive_list=analogy[1:3],
-                                            test_word=analogy[3:4],
+                                            test_word=analogy[3],
                                             n=n)
                     results.append(res)
 
@@ -754,7 +754,8 @@ class WordEmbedding:
             if ratio == 0.0:
                 precisions.append(np.nan)
             else:
-                precisions.append(np.mean([r for r in results if not np.isnan(r)]))
+                results_no_nan = [r for r in results if not np.isnan(r)]
+                precisions.append(results_no_nan.count(True)/len(results))
 
         if full_output:
             df = pd.DataFrame({'task': tasks,
@@ -777,11 +778,11 @@ class WordEmbedding:
         file_path = os.path.dirname(__file__)
         with open(file_path + '/datasets/wordsim_relatedness_goldstandard.txt', 'r') as f:
             relatedness = f.readlines()
-            relatedness = [i.strip('\n').split('\t') for i in relatedness]
+            relatedness = [i.lower().strip('\n').split('\t') for i in relatedness]
 
         with open(file_path + '/datasets/wordsim_similarity_goldstandard.txt', 'r') as f:
             similarity = f.readlines()
-            similarity = [i.strip('\n').split('\t') for i in similarity]
+            similarity = [i.lower().strip('\n').split('\t') for i in similarity]
 
         words1 = []
         words2 = []
@@ -798,7 +799,7 @@ class WordEmbedding:
 
             words1.append(word1)
             words2.append(word2)
-            targets.append(float(smpl[2]))
+            targets.append((float(smpl[2])-5)/10)  # rescale from 0,10 to -1, 1
             predictions.append(prediction)
 
         if full_output:
@@ -936,13 +937,13 @@ class EmbeddingEnsemble:
         else:
             return individual
 
-    def analogy(self, positive_list, negative_list, n=10, aggregate=True):
+    def analogy(self, negative_list, positive_list, n=10, aggregate=True):
         """Compute words closest to the vector resulting from an analogy computation as
            proposed in https://www.aclweb.org/anthology/W14-1618.pdf .
 
          Args:
-            positive_list (list[str]): list of positive words
-            negative_list (list[str]): list of negative words
+            negative_list (list[str]): list of negative words [a is to]
+            positive_list (list[str]): list of positive words [b like c to]
             n (int): how many neighbours to compute
             aggregate (bool): whether to aggregate the results to a single answer
 
@@ -958,7 +959,7 @@ class EmbeddingEnsemble:
                 individual.append([])
                 continue
 
-            analogy_list = emb._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
+            analogy_list = emb._word_vectors.most_similar(negative=negative_list, positive=positive_list, topn=n)
             individual.append(analogy_list)
 
         if aggregate:
@@ -968,13 +969,14 @@ class EmbeddingEnsemble:
         else:
             return individual
 
-    def analogy_test(self, positive_list, negative_list, test_word, n=10, m=10, aggregate=True):
+    def analogy_test(self, negative_list, positive_list, test_word, n=10, m=10, aggregate=True):
         """Check whether the test word appears in the n closest words to the vector resulting from
            an analogy computation as proposed in https://www.aclweb.org/anthology/W14-1618.pdf .
 
         Args:
-            positive_list (list[str]): list of positive words
-            negative_list (list[str]): list of negative words
+            negative_list (list[str]): list of negative words ["a is to"]
+            positive_list (list[str]): list of positive words ["b like c"]
+            test_word (str): target ["is to d"]
             n (int): how many neighbours to compute
             m (int): how many neighbours to extract from the cumulative neighbour list if aggregate=True
             aggregate (bool): whether to aggregate the results to a single answer
@@ -986,7 +988,7 @@ class EmbeddingEnsemble:
         """
 
         if aggregate:
-            cumulative_list = self.analogy(positive_list, negative_list, n=n, aggregate=True)
+            cumulative_list = self.analogy(negative_list=negative_list, positive_list=positive_list, n=n, aggregate=True)
             # extract words
             cumulative_list = [tpl[0] for tpl in cumulative_list]
             return test_word in cumulative_list[:m]
@@ -1105,7 +1107,7 @@ class EmbeddingEnsemble:
 
             with open(file_path + '/datasets/' + test + '.txt', 'r') as f:
                 analogies = f.readlines()
-                analogies = [i.strip('\n').split(' ') for i in analogies]
+                analogies = [i.lower().strip('\n').split(' ') for i in analogies]
 
             results = []
             for analogy in analogies:
@@ -1114,7 +1116,7 @@ class EmbeddingEnsemble:
                 else:
                     res = self.analogy_test(negative_list=analogy[0:1],
                                             positive_list=analogy[1:3],
-                                            test_word=analogy[3:4],
+                                            test_word=analogy[3],
                                             n=n,
                                             m=m,
                                             aggregate=True)
@@ -1126,7 +1128,8 @@ class EmbeddingEnsemble:
             if ratio == 0.0:
                 precisions.append(np.nan)
             else:
-                precisions.append(np.mean([r for r in results if not np.isnan(r)]))
+                results_no_nan = [r for r in results if not np.isnan(r)]
+                precisions.append(results_no_nan.count(True) / len(results))
 
         if full_output:
             df = pd.DataFrame({'task': tasks,
@@ -1149,11 +1152,11 @@ class EmbeddingEnsemble:
         file_path = os.path.dirname(__file__)
         with open(file_path + '/datasets/wordsim_relatedness_goldstandard.txt', 'r') as f:
             relatedness = f.readlines()
-            relatedness = [i.strip('\n').split('\t') for i in relatedness]
+            relatedness = [i.lower().strip('\n').split('\t') for i in relatedness]
 
         with open(file_path + '/datasets/wordsim_similarity_goldstandard.txt', 'r') as f:
             similarity = f.readlines()
-            similarity = [i.strip('\n').split('\t') for i in similarity]
+            similarity = [i.lower().strip('\n').split('\t') for i in similarity]
 
         words1 = []
         words2 = []
@@ -1170,7 +1173,7 @@ class EmbeddingEnsemble:
 
             words1.append(word1)
             words2.append(word2)
-            targets.append(float(smpl[2]))
+            targets.append((float(smpl[2])-5)/10)
             predictions.append(prediction)
 
         if full_output:
