@@ -20,18 +20,17 @@ PUNCTUATION = string.punctuation.replace("_", "") + "“”’‘‚…–"  # a
 GARBAGE = ['windowtextcolor', ]
 
 
-def head(path_to_json, n=5):
+def head(path_to_data, n=5):
     """Return list of first n dictionaries extracted from a json-lines (.jl) file.
     Args:
-        path_to_json (str): full path to the .jl file, including ending
+        path_to_data (str): full path to the .jl or .txt file, including ending
         n (int): number of rows to read
     """
-    data_loader = open(path_to_json)
+    data_loader = open(path_to_data)
 
     entries = []
     for i, row in enumerate(data_loader):
-        row_dict = json.loads(row)
-        entries.append(row_dict)
+        entries.append(row)
         if i == n-1:
             break
 
@@ -176,18 +175,18 @@ def clean(path_to_json,
         f.write('%s' % description)
 
 
-def make_ngrams(input_path, description_path=None, min_count_ngrams=50, threshold_ngrams=10):
+def make_ngrams(path_to_txt, description_path=None, min_count_ngrams=50, threshold_ngrams=10):
     """Replace frequently occuring word combinations with bigrams and trigrams in document
     of sentences.
 
     Args:
-        input_path (str): path to text (.txt) file of one sentence per line
+        path_to_txt (str): path to text (.txt) file of one sentence per line
         description_path (str): path to text file containing description
         min_count_ngrams (int): Ignore all words and ngrams with total collected count lower than this value
         threshold_ngrams (int): Represent a score threshold for forming the phrases (higher means fewer phrases).
     """
 
-    temp_path = input_path[:-4] + "-temp.txt"
+    temp_path = path_to_txt[:-4] + "-temp.txt"
 
     def sentence_generator(path):
         """Read sentences from disk one-by-one"""
@@ -197,7 +196,7 @@ def make_ngrams(input_path, description_path=None, min_count_ngrams=50, threshol
 
     print("Making bigrams...")
 
-    gram_model = Phrases(sentence_generator(input_path),
+    gram_model = Phrases(sentence_generator(path_to_txt),
                          min_count=min_count_ngrams,
                          threshold=threshold_ngrams,
                          max_vocab_size=2000000,
@@ -209,7 +208,7 @@ def make_ngrams(input_path, description_path=None, min_count_ngrams=50, threshol
     # write bigram sentences into temporary file
     # (couldn't figure out how to replace)
     with open(temp_path, 'w') as f:
-        for sentence in sentence_generator(input_path):
+        for sentence in sentence_generator(path_to_txt):
             new_sentence = gram_model[sentence]
             new_sentence = " ".join(new_sentence) + "\n"
             f.write(new_sentence)
@@ -225,7 +224,7 @@ def make_ngrams(input_path, description_path=None, min_count_ngrams=50, threshol
     gram_model.freeze()
 
     # overwrite input path
-    with open(input_path, 'w') as f:
+    with open(path_to_txt, 'w') as f:
         for sentence in sentence_generator(temp_path):
             new_sentence = gram_model[sentence]
             new_sentence = " ".join(new_sentence) + "\n"
@@ -295,3 +294,36 @@ def extract(path_to_json,
     description = f"Filtered data set {path_to_json} with filter: \n {filter}"
     with open(output_path[:-4] + '-description.txt', 'w') as f:
         f.write('%s' % description)
+
+
+def count_first_word(path_to_txt, path_out):
+    """
+    Saves the first words in each line of path_to_txt, together with
+    their frequency. Useful to extract a list of agents and the frequency
+    of their utterances, when "agent_column" was used in clean().
+
+    path_to_txt (str): path to data, one sentence/document per line
+    path_out (str): full path to save output
+    """
+
+    if os.path.exists(path_out):
+        raise ValueError(f"path {path_out} exists already.")
+    first_words = {}
+    with open(path_to_txt, 'r') as f:
+        for line in f:
+
+            word = line.split()[0]
+
+            if word in first_words:
+                first_words[word] += 1
+            else:
+                first_words[word] = 1
+
+    # save as tuple list
+    first_words = [(k, v) for k, v in first_words.items()]
+    # sort
+    first_words = sorted(first_words, key=lambda x: x[1], reverse=True)
+
+    with open(path_out, 'w') as f:
+        for pair in first_words:
+            f.write(pair[0] + " " + str(pair[1]) + "\n")

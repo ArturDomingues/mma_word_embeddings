@@ -34,23 +34,20 @@ class EmbeddingError(Exception):
 class WordEmbedding:
     """Representation of a word embedding, which is a map from word strings to vectors."""
 
-    def __init__(self, path_to_embedding, path_training_data=None):
+    def __init__(self, path_to_embedding):
 
         print("Loading embedding {} ... ".format(path_to_embedding))
 
         try:
             # load the word vectors of an embedding
             self._word_vectors = KeyedVectors.load(path_to_embedding)
+
         except:
             raise EmbeddingError("Failed to load the embedding. In 99.999% of all cases this means your "
                                  "path is wrong. Good luck.")
 
         self.description = "This object represents the {} word embedding.".format(path_to_embedding)
         self.path_to_embedding = path_to_embedding.replace("/content/drive/My Drive/", "")
-
-        self.training_data = None
-        if path_training_data is not None:
-            self.load_training_data(path_training_data)
 
         print("...finished loading.")
 
@@ -108,98 +105,6 @@ class WordEmbedding:
 
         return sample(vocab, n_words)
 
-    def load_training_data(self, path_training_data):
-        """Load training data into embedding after embedding was created."""
-        training_data = []
-        if path_training_data is not None:
-            with open(path_training_data, "r") as f:
-                for line in f:
-                    stripped_line = line.strip()
-                    line_list = stripped_line.split()
-                    training_data.append(line_list)
-            self.training_data = training_data
-
-    def context_in_training_data(self, word, n=3):
-        """Return whether word is in vocab. Only works if training data was loaded.
-        Args:
-            word (str): Word to search for
-            n (int): number of neighbouring words to print
-        """
-        if self.training_data is None:
-            raise ValueError("This function needs access to the training data. "
-                             "Please load the training data with the 'load_training_data()' "
-                             "function and then try again. ")
-        context = []
-        for sentence in self.training_data:
-            for idx, token in enumerate(sentence):
-                if word == token:
-                    start = 0 if (idx - n < 0) else idx - n
-                    stop = len(sentence)-1 if (idx + n > len(sentence)-1) else idx + n
-                    string = " ".join(sentence[start:stop+1])
-                    context.append(string)
-        return context
-
-    def frequency_in_training_data(self, word):
-        """Return how often the word appears in the training data. Only works if training data was loaded."""
-        if self.training_data is None:
-            raise ValueError("This function needs access to the training data. "
-                             "Please load the training data with the 'load_training_data()' "
-                             "function and then try again. ")
-
-        counter = 0
-        for document in self.training_data:
-            for wrd in document:
-                if wrd == word:
-                    counter += 1
-
-        return counter
-
-    def sort_by_frequency_in_training_data(self, list_of_words):
-        """Return a table in which the words are sorted by the frequency with which they appear in the training data."""
-        freqs = [self.frequency_in_training_data(word) for word in list_of_words]
-        res = pd.DataFrame({'Word': list_of_words, 'Frequency': freqs})
-        res = res.sort_values(by='Frequency', axis=0, ascending=False)
-        res = res.reset_index(drop=True)
-        return res
-
-    def vocab_sorted_by_frequency_in_training_data(self, first_n=None, more_frequent_than=None):
-        """Return the vocab sorted by the frequency with which they appear in the training data.
-
-        Args:
-             first_n (int): only return n most frequent words (-n for last n words). Overwrites up_to argument!
-             more_frequent_than (int): only return words up to frequency "up_to"
-        """
-
-        if self.training_data is None:
-            raise ValueError("This function needs access to the training data. "
-                             "Please load the training data with the 'load_training_data()' "
-                             "function and then try again. ")
-
-        if more_frequent_than == 0:
-            more_frequent_than = None
-
-        flat_training_data = [wrd for document in self.training_data for wrd in document]
-        c = Counter(flat_training_data)
-
-        res = pd.DataFrame({"Word": c.keys(), "Frequency": c.values()})
-        if first_n is not None:
-            res = res.head(n=first_n)
-        if more_frequent_than is not None:
-            res = res[res['Frequency'] > more_frequent_than]
-        return res
-
-    def training_data_size(self):
-        """Return how many words are in the training data. Only works if training data was loaded."""
-        if self.training_data is None:
-            raise ValueError("This function needs access to the training data. "
-                             "Please load the training data with the 'load_training_data()' "
-                             "function and then try again. ")
-
-        counter = 0
-        for sentence in self.training_data:
-            counter += len(sentence)
-        return counter
-
     def vocab_containing(self, word_part, show_frequency=False):
         """Return all words in the vocab that contain the word_part as a substring.
 
@@ -231,7 +136,7 @@ class WordEmbedding:
         return [self.vector(word) for word in list_of_words]
 
     def difference_vector(self, word1, word2, normalize=False):
-        """Return the difference vector of 'word1' and 'word2'.
+        """Return the difference vector vec(word1) - vec(word2).
         Args:
             word1 (str): first word
             word2 (str): second word
@@ -239,7 +144,7 @@ class WordEmbedding:
 
         Returns:
             ndarray: normalised difference vector
-            """
+        """
 
         vec1 = self.vector(word1)
         vec2 = self.vector(word2)
@@ -371,6 +276,7 @@ class WordEmbedding:
         """Get the words closest to the principal components of the word vectors in the vocab.
 
         Args:
+            list_of_words (list[str]): list of words
             n_components (int): number of components
             n (int): number of neighbours to print for each component
 
@@ -395,6 +301,31 @@ class WordEmbedding:
         """Returns words close to positive words and far away from negative words, as
         proposed in https://www.aclweb.org/anthology/W14-1618.pdf"""
         return self._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
+
+    def analogy_test(self, positive_list, negative_list, test_word, n=10):
+        """Check whether the test word appears in the n closest words to the vector resulting from
+           an analogy computation as proposed in https://www.aclweb.org/anthology/W14-1618.pdf .
+
+        Args:
+            positive_list (list[str]): list of positive words
+            negative_list (list[str]): list of negative words
+            n (int): how many neighbours to compute
+
+        Returns:
+            bool
+        """
+
+        for word in positive_list + negative_list:
+
+            if not self.in_vocab(word):
+                raise ValueError(f"{word} not found in vocab.")
+
+        analogy_tuples = self._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
+        analogy_words = [tpl[0] for tpl in analogy_tuples]
+        if test_word in analogy_words:
+            return True
+        else:
+            return False
 
     def projection(self, test_word, word_pair):
         """Compute the projection of a word to the normalized difference vector of the word pair.
@@ -765,6 +696,13 @@ class WordEmbedding:
         plt.xlabel("dimension in embedding space")
         plt.show()
 
+    def score_analogy_test(self, average=False):
+        """Compute the scores of different analogy tests from Google Analogy dataset
+        http://download.tensorflow.org/data/questions-words.txt."""
+
+    def score_similarity_test(self, average=False):
+        """Compute the scores of the wordsim similarity tests"""
+
 
 class EmbeddingEnsemble:
     """Applies actions to an list_of_embeddings of trained embeddings.
@@ -1021,3 +959,10 @@ class EmbeddingEnsemble:
             return sorted([(k, v) for k, v in c.items()], key=lambda tpl: tpl[1], reverse=True)
         else:
             return individual
+
+    def score_analogy_test(self, average=False, aggregate=True):
+        """Compute the scores of different analogy tests from Google Analogy dataset
+        http://download.tensorflow.org/data/questions-words.txt."""
+
+    def score_similarity_test(self, average=False, aggregate=True):
+        """Compute the scores of the wordsim similarity tests"""
