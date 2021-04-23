@@ -95,7 +95,6 @@ def train_word2vec_model(
         chunk_size=10000,
         random_buffer_size=100000,
         path_pretraining_data=None,
-        len_training_data=None,
         data_seed=None,
 ):
     """Trains a single embedding or an ensemble of embeddings.
@@ -117,7 +116,6 @@ def train_word2vec_model(
             random samples.
         path_pretraining_data (str): if model should get pre-trained, specify this path to the pretraining data set;
             the full dataset will be used for pre-training
-        len_training_data (int): pretraining requires this estimate of the length of the training data
         data_seed (int): Random seed set for sampling. When more than one model is created, the ith model
          will use data_seed + i as a seed for the data.
     """
@@ -173,7 +171,8 @@ def train_word2vec_model(
                                                   random_buffer_size,
                                                   data_seed + m)
             model = Word2Vec(sentences=pretraining_generator, **hyperparameters)
-            model.train(corpus_iterable=training_generator, total_examples=len_training_data, epochs=model.epochs)
+            model.build_vocab(training_generator, update=True)
+            model.train(corpus_iterable=training_generator, total_examples=model.corpus_count, epochs=model.epochs)
 
         # normalise the word vectors
         model.wv.init_sims(replace=True)
