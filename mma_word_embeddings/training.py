@@ -87,6 +87,7 @@ class DataGenerator(object):
 
 def train_word2vec_model(
         path_training_data,
+        path_description,
         output_path,
         hyperparameters={},
         n_models=1,
@@ -95,12 +96,13 @@ def train_word2vec_model(
         random_buffer_size=100000,
         path_pretraining_data=None,
         len_training_data=None,
-        path_description=None,
         data_seed=None,
 ):
     """Trains a single embedding or an ensemble of embeddings.
 
     Args:
+        path_training_data (str): location of training data, one sentence/document per line
+        path_description (str): location of description file for training data
         output_path (str): where to save the model and description file; does not include an ending (.emb will
             be automatically added)
         hyperparameters (dict): dictionary of hyperparameters that are directly fed into Word2Vec model
@@ -116,26 +118,38 @@ def train_word2vec_model(
         path_pretraining_data (str): if model should get pre-trained, specify this path to the pretraining data set;
             the full dataset will be used for pre-training
         len_training_data (int): pretraining requires this estimate of the length of the training data
-        path_description (str): path to a log file that is annotated
         data_seed (int): Random seed set for sampling. When more than one model is created, the ith model
          will use data_seed + i as a seed for the data.
     """
 
     # check paths before starting costly training ---------
+    # INPUT paths
+    if not os.path.isfile(path_training_data):
+        raise ValueError(f"Unknown path to training data {path_training_data}")
+    if path_pretraining_data is not None and not os.path.isfile(path_pretraining_data):
+        raise ValueError(f"Unknown path to pretraining data {path_pretraining_data}")
+    if not os.path.isfile(path_description):
+        raise ValueError(f"Unknown path to data description file {path_description}")
+
+    # OUTPUT paths
     dirname = os.path.dirname(output_path)
     if not os.path.exists(dirname):
         raise ValueError(f"Directory {dirname} does not exist.")
-
-    for m in range(n_models):
-
-        path_out = output_path + "-" + str(m) + ".emb"
-        path_description_out = output_path + "-" + str(m) + "_description.txt"
-
-        # Check if already exists
+    if n_models == 1:
+        path_out = output_path + "-" + ".emb"
+        path_description_out = output_path + "_description.txt"
         if os.path.isfile(path_out):
             raise ValueError("Path {} for description already exists.".format(path_out))
         if os.path.isfile(path_description_out):
             raise ValueError("Path {} for description already exists.".format(path_description_out))
+    else:
+        for m in range(n_models):
+            path_out = output_path + "-" + str(m) + ".emb"
+            path_description_out = output_path + "-" + str(m) + "_description.txt"
+            if os.path.isfile(path_out):
+                raise ValueError("Path {} for description already exists.".format(path_out))
+            if os.path.isfile(path_description_out):
+                raise ValueError("Path {} for description already exists.".format(path_description_out))
     # ---------------
 
     for m in range(n_models):
@@ -167,24 +181,30 @@ def train_word2vec_model(
         emb = model.wv
 
         # save the current embedding
-        path_out = output_path + "-" + str(m) + ".emb"
-        # just to be sure!
-        if os.path.isfile(path_out):
-            path_out = output_path + "-" + str(m) + "-alt.emb"
-            print("Path for embedding {} already exists. Renamed path to {}.".format(m, path_out))
+        if n_models == 1:
+            path_out = output_path + ".emb"
+            path_description_out = output_path + "_description.txt"
+
+        else:
+            path_out = output_path + "-" + str(m) + ".emb"
+            path_description_out = output_path + "-" + str(m) + "_description.txt"
+
         emb.save(path_out)
 
         # save description
-        log = "The following training data was used:\n{}\n".format(path_training_data)
+        with open(path_description) as f:
+            description = f.readlines()
+            description = "".join(description)
+        log = "The following training data was used:\n\n{}\n".format(description)
         if path_pretraining_data is not None:
             log += f"Model was pretrained with data loaded from: {path_pretraining_data}."
-        log += "Used {}% of original data.\n".format(100 * share_of_original_data)
+        log += "Used {}% of original data for training.\n".format(100 * share_of_original_data)
         log += "Used a random buffer size of {} lines and chunks of size {}.\n".format(random_buffer_size, chunk_size)
-        log += f"Used the data seed {data_seed}."
+        log += f"Used the data seed {data_seed} \n."
         log += "The model generating the embedding was trained with the following " \
                "hyperparameters: \n {}\n".format(hyperparameters)
 
-        with open(path_description, "w") as f:
+        with open(path_description_out, "w") as f:
             f.write(log)
 
 
