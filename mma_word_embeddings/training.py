@@ -173,7 +173,7 @@ def train_word2vec_model(
                                                   random_buffer_size,
                                                   data_seed + m)
             model = Word2Vec(sentences=pretraining_generator, **hyperparameters)
-            model.train(sentences=training_generator, total_examples=len_training_data, epochs=model.epochs)
+            model.train(corpus_iterable=training_generator, total_examples=len_training_data, epochs=model.epochs)
 
         # normalise the word vectors
         model.wv.init_sims(replace=True)
