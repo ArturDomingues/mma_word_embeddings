@@ -65,7 +65,7 @@ def clean(path_to_json,
     output_train = output_path + "_training-data.txt"
     if os.path.exists(output_train):
         raise ValueError(f"File {output_train} already exists.")
-    output_description = output_path + "_description.txt"
+    output_description = output_path + "_training-data" + "_description.txt"
     if os.path.exists(output_description):
         raise ValueError(f"File {output_description} already exists.")
 
@@ -75,7 +75,8 @@ def clean(path_to_json,
 
     for idx, row in enumerate(data_loader):
 
-        if not row:
+        if "items read" in row:
+            print(row)
             break
 
         # turn string into dictionary of the
@@ -260,11 +261,12 @@ def extract(path_to_json,
 
     print("Start filtering documents...")
     # load a json reader that can read files line-by-line
-    data_loader = open(path_to_json)
+    data_loader = open(path_to_json, 'r')
 
     for idx, row in enumerate(data_loader):
 
-        if not row:
+        if "items read" in row:
+            print(row)
             break
 
         # turn string into dictionary of the
