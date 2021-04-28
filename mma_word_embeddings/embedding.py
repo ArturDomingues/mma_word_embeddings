@@ -810,11 +810,13 @@ class WordEmbedding:
             return df
         else:
             least_sq = 0
+            n_not_nan = 0
             for t, p in zip(targets, predictions):
                 if not np.isnan(p):
                     least_sq += (p-t)**2
+                    n_not_nan += 1
 
-            return least_sq
+            return least_sq/n_not_nan
 
 
 class EmbeddingEnsemble:
