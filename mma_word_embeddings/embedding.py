@@ -809,9 +809,12 @@ class WordEmbedding:
                                'prediction': predictions})
             return df
         else:
-            targets_no_nan = [t for t, p in zip(targets, predictions) if not np.isnan(p)]
-            predictions_no_nan = [p for p in predictions if not np.isnan(p)]
-            return pearsonr(targets_no_nan, predictions_no_nan)[0]
+            least_sq = 0
+            for t, p in zip(targets, predictions):
+                if not np.isnan(p):
+                    least_sq += (p-t)**2
+
+            return least_sq
 
 
 class EmbeddingEnsemble:
