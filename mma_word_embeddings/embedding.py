@@ -818,7 +818,6 @@ class WordEmbedding:
             max_p = max(predictions)
             min_t = min(targets)
             max_t = max(targets)
-            print(min_p, max_p, min_t, max_t)
 
             predictions = [(p - min_p)/(max_p - min_p) * (1 - (-1)) + (-1)
                            for p in predictions]
