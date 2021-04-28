@@ -810,15 +810,22 @@ class WordEmbedding:
 
             words1.append(word1)
             words2.append(word2)
-            targets.append(smpl[2])
+            targets.append((float(smpl[2])-5)/5)
             predictions.append(prediction)
 
         if rescale:
-            predictions = [(p - min(predictions))/(max(predictions) - min(predictions)) * (1 - (-1)) + (-1)
+            min_p = min(predictions)
+            max_p = max(predictions)
+            min_t = min(targets)
+            max_t = max(targets)
+            print(min_p, max_p, min_t, max_t)
+
+            predictions = [(p - min_p)/(max_p - min_p) * (1 - (-1)) + (-1)
                            for p in predictions]
 
-            targets = [(t - min(targets))/(max(targets) - min(targets)) * (1 - (-1)) + (-1)
+            targets = [(t - min_t)/(max_t - min_t) * (1 - (-1)) + (-1)
                        for t in targets]
+
 
         if full_output:
             df = pd.DataFrame({'word1': words1,
