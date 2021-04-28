@@ -765,12 +765,23 @@ class WordEmbedding:
         else:
             return np.mean([p for p in precisions if not np.isnan(p)])
 
-    def score_similarity_test(self, full_output=False):
+    def score_similarity_test(self, full_output=False, rescale=True):
         """Compute the scores of the wordsim similarity tests (relatedness and similarity goldstandard).
+
+
+
         Args:
-            full_output (bool): if true, return a dataframe with the detailed results;
-                else return the pearson-r coefficient that measures the correlation between predicted and
-                target similarities
+            full_output (bool): If true, return a dataframe with the detailed results;
+                else return the least-squares difference between predicted and
+                target similarities.
+            rescale (bool): Since the embedding's similarities between words are almost all
+            in [0, 1] instead of the theoretical [-1, 1] interval, we rescale the target and
+            prediction similarities so that the smallest similarity in the dataset is rescaled to -1,
+            and the largest to 1. The formula takes each value vi of a list of similarities v to
+
+            .. math::
+
+                v \to \frac{v - min(v)}{max(v) - min(v)} * (1- (-1)) + (-1)
 
         Return:
             Dataframe or float
@@ -799,8 +810,15 @@ class WordEmbedding:
 
             words1.append(word1)
             words2.append(word2)
-            targets.append((float(smpl[2])-5)/10)  # rescale from 0,10 to -1, 1
+            targets.append(smpl[2])
             predictions.append(prediction)
+
+        if rescale:
+            predictions = [(p - min(predictions))/(max(predictions) - min(predictions)) * (1 - (-1)) + (-1)
+                           for p in predictions]
+
+            targets = [(t - min(targets))/(max(targets) - min(targets)) * (1 - (-1)) + (-1)
+                       for t in targets]
 
         if full_output:
             df = pd.DataFrame({'word1': words1,
@@ -809,6 +827,7 @@ class WordEmbedding:
                                'prediction': predictions})
             return df
         else:
+
             least_sq = 0
             n_not_nan = 0
             for t, p in zip(targets, predictions):
