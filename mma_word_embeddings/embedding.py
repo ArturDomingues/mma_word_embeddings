@@ -755,7 +755,7 @@ class WordEmbedding:
                 precisions.append(np.nan)
             else:
                 results_no_nan = [r for r in results if not np.isnan(r)]
-                precisions.append(results_no_nan.count(True)/len(results))
+                precisions.append(results_no_nan.count(True)/len(results_no_nan))
 
         if full_output:
             df = pd.DataFrame({'task': tasks,
@@ -775,13 +775,13 @@ class WordEmbedding:
                 else return the least-squares difference between predicted and
                 target similarities.
             rescale (bool): Since the embedding's similarities between words are almost all
-            in [0, 1] instead of the theoretical [-1, 1] interval, we rescale the target and
-            prediction similarities so that the smallest similarity in the dataset is rescaled to -1,
-            and the largest to 1. The formula takes each value vi of a list of similarities v to
+                in [0, 1] instead of the theoretical [-1, 1] interval, we rescale the target and
+                prediction similarities so that the smallest similarity in the dataset is rescaled to -1,
+                and the largest to 1. The formula takes each value vi of a list of similarities v to
 
-            .. math::
+                .. math::
 
-                v \to \frac{v - min(v)}{max(v) - min(v)} * (1- (-1)) + (-1)
+                    v \to \frac{v - min(v)}{max(v) - min(v)} * (1- (-1)) + (-1)
 
         Return:
             Dataframe or float
@@ -1159,7 +1159,7 @@ class EmbeddingEnsemble:
                 precisions.append(np.nan)
             else:
                 results_no_nan = [r for r in results if not np.isnan(r)]
-                precisions.append(results_no_nan.count(True) / len(results))
+                precisions.append(results_no_nan.count(True) / len(results_no_nan))
 
         if full_output:
             df = pd.DataFrame({'task': tasks,
@@ -1169,13 +1169,20 @@ class EmbeddingEnsemble:
         else:
             return np.mean([p for p in precisions if not np.isnan(p)])
 
-    def score_similarity_test(self, full_output=False):
+    def score_similarity_test(self, full_output=False, rescale=True):
         """Compute the scores of the wordsim similarity tests (relatedness and similarity goldstandard).
         Args:
             full_output (bool): if true, return a dataframe with the detailed results;
                 else return the pearson-r coefficient that measures the correlation between predicted and
                 target similarities
+            rescale (bool): Since the embedding's similarities between words are almost all
+                in [0, 1] instead of the theoretical [-1, 1] interval, we rescale the target and
+                prediction similarities so that the smallest similarity in the dataset is rescaled to -1,
+                and the largest to 1. The formula takes each value vi of a list of similarities v to
 
+                .. math::
+
+                    v \to \frac{v - min(v)}{max(v) - min(v)} * (1- (-1)) + (-1)
         Return:
             Dataframe or float
         """
@@ -1206,6 +1213,18 @@ class EmbeddingEnsemble:
             targets.append((float(smpl[2])-5)/10)
             predictions.append(prediction)
 
+        if rescale:
+            min_p = min(predictions)
+            max_p = max(predictions)
+            min_t = min(targets)
+            max_t = max(targets)
+
+            predictions = [(p - min_p)/(max_p - min_p) * (1 - (-1)) + (-1)
+                           for p in predictions]
+
+            targets = [(t - min_t)/(max_t - min_t) * (1 - (-1)) + (-1)
+                       for t in targets]
+
         if full_output:
             df = pd.DataFrame({'word1': words1,
                                'word2': words2,
@@ -1213,7 +1232,12 @@ class EmbeddingEnsemble:
                                'prediction': predictions})
             return df
         else:
-            targets_no_nan = [t for t, p in zip(targets, predictions) if not np.isnan(p)]
-            predictions_no_nan = [p for p in predictions if not np.isnan(p)]
 
-            return pearsonr(targets_no_nan, predictions_no_nan)[0]
+            least_sq = 0
+            n_not_nan = 0
+            for t, p in zip(targets, predictions):
+                if not np.isnan(p):
+                    least_sq += (p-t)**2
+                    n_not_nan += 1
+
+            return least_sq/n_not_nan
