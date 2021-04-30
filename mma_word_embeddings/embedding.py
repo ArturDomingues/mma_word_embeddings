@@ -739,14 +739,19 @@ class WordEmbedding:
 
             results = []
             for analogy in analogies:
-                if not all([self.in_vocab(a) for a in analogy]):
+                # check if word to guess exists
+                if not self.in_vocab(analogy[-1]):
                     results.append(np.nan)
                 else:
-                    res = self.analogy_test(negative_list=[analogy[0]],
-                                            positive_list=analogy[1:3],
-                                            test_word=analogy[3],
-                                            n=n)
-                    results.append(res)
+                    try:
+                        res = self.analogy_test(negative_list=[analogy[0]],
+                                                positive_list=analogy[1:3],
+                                                test_word=analogy[3],
+                                                n=n)
+                        results.append(res)
+                    except KeyError:
+                        # some of the three first words not found
+                        results.append(np.nan)
 
             tasks.append(test)
             ratio = 1-results.count(np.nan)/len(results)
@@ -803,9 +808,9 @@ class WordEmbedding:
             word1 = smpl[0]
             word2 = smpl[1]
 
-            if self.in_vocab(word1) and self.in_vocab(word2):
+            try:
                 prediction = self.similarity(word1, word2)
-            else:
+            except KeyError:
                 prediction = np.nan
 
             words1.append(word1)
@@ -824,7 +829,6 @@ class WordEmbedding:
 
             targets = [(t - min_t)/(max_t - min_t) * (1 - (-1)) + (-1)
                        for t in targets]
-
 
         if full_output:
             df = pd.DataFrame({'word1': words1,
@@ -1141,16 +1145,21 @@ class EmbeddingEnsemble:
 
             results = []
             for analogy in analogies:
-                if not all([self.in_vocab(a) for a in analogy]):
+                # check if word to guess actually exists
+                if not self.in_vocab(analogy[-1]):
                     results.append(np.nan)
                 else:
-                    res = self.analogy_test(negative_list=analogy[0:1],
-                                            positive_list=analogy[1:3],
-                                            test_word=analogy[3],
-                                            n=n,
-                                            m=m,
-                                            aggregate=True)
-                    results.append(res)
+                    try:
+                        res = self.analogy_test(negative_list=analogy[0:1],
+                                                positive_list=analogy[1:3],
+                                                test_word=analogy[3],
+                                                n=n,
+                                                m=m,
+                                                aggregate=True)
+                        results.append(res)
+                    except KeyError:
+                        # one of the first three words was not in vocab
+                        results.append(np.nan)
 
             tasks.append(test)
             ratio = 1-results.count(np.nan)/len(results)
@@ -1203,9 +1212,9 @@ class EmbeddingEnsemble:
             word1 = smpl[0]
             word2 = smpl[1]
 
-            if self.in_vocab(word1) and self.in_vocab(word2):
+            try:
                 prediction = self.similarity(word1, word2, aggregate=True)
-            else:
+            except KeyError:
                 prediction = np.nan
 
             words1.append(word1)
