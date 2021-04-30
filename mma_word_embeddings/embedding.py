@@ -220,11 +220,17 @@ class WordEmbedding:
         return explained_variance
 
     def similarity(self, word1, word2):
-        """Return the similarity between 'word1' and 'word2'. The result is a value between -1 and 1."""
-        return np.dot(self.vector(word1), self.vector(word2))
+        """Return the similarity between 'word1' and 'word2'. The result is a value between -1 and 1,
+        or nan if one of the words is not in the vocab."""
+        try:
+            res = np.dot(self.vector(word1), self.vector(word2))
+        except KeyError:
+            return np.nan
+        return res
 
     def similarities(self, list_of_word_pairs):
-        """Return the cosine similarities between words in list of word pairs."""
+        """Return the cosine similarities between words in list of word pairs, or nan if one
+        of the words is not found."""
         result = [[word1, word2, round(self.similarity(word1, word2), 3)] for word1, word2 in list_of_word_pairs]
         result_dataframe = pd.DataFrame(result, columns=['Word1', 'Word2', 'Similarity'])
         result_dataframe = result_dataframe.sort_values(["Similarity"], axis=0)
@@ -301,8 +307,22 @@ class WordEmbedding:
 
     def analogy(self, negative_list, positive_list, n=10):
         """Returns words close to positive words and far away from negative words, as
-        proposed in https://www.aclweb.org/anthology/W14-1618.pdf"""
-        return self._word_vectors.most_similar(negative=negative_list, positive=positive_list, topn=n)
+        proposed in https://www.aclweb.org/anthology/W14-1618.pdf. Calls gensim's most_similar method on the
+        KeyedVector instance.
+
+        Args:
+            negative_list (list[str]): negative word list
+            positive_list (list[str]): positive word list
+            n (int): number of candidate words to return
+
+        Returns:
+            list[str] or np.nan: analogy word list, or nan if one of the words is not found
+        """
+        try:
+            res = self._word_vectors.most_similar(negative=negative_list, positive=positive_list, topn=n)
+        except KeyError:
+            return np.nan
+        return res
 
     def analogy_test(self, negative_list, positive_list, test_word, n=10):
         """Check whether the test word appears in the n closest words to the vector resulting from
@@ -314,15 +334,18 @@ class WordEmbedding:
             n (int): how many neighbours to compute
 
         Returns:
-            bool
+            bool or np.nan: The result of the test, or nan if one of the words (or the test word)
+                is not in the vocab
         """
 
-        for word in positive_list + negative_list:
+        if not self.in_vocab(test_word):
+            return np.nan
 
-            if not self.in_vocab(word):
-                raise ValueError(f"{word} not found in vocab.")
+        try:
+            analogy_tuples = self._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
+        except KeyError:
+            return np.nan
 
-        analogy_tuples = self._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
         analogy_words = [tpl[0] for tpl in analogy_tuples]
         if test_word in analogy_words:
             return True
@@ -587,7 +610,7 @@ class WordEmbedding:
         plt.tight_layout()
 
     def plot_distance_matrix(self, list_of_words, cluster=True, figsize=5, nonlinear=False, nl_scaling=2,
-                             normalize=False, min=-1):
+                             normalize=False, min_similarity=-1):
         """Plot a matrix where each value shows the similarity between words"""
         if nonlinear:
             covariance_list = [np.tanh(nl_scaling * self.similarity(word1, word2))
@@ -601,7 +624,7 @@ class WordEmbedding:
             # hierarchical clustering
             d = sch.distance.pdist(covariance)
             L = sch.linkage(d, method='complete')
-            ind = sch.fcluster(L, 0.5 * d.max(), 'distance')
+            ind = sch.fcluster(L, 0.6 * d.max(), 'distance')
             new_indices = [i for i in list((np.argsort(ind)))]
 
             # reorder columns
@@ -615,7 +638,7 @@ class WordEmbedding:
         if normalize:
             plt.imshow(covariance, aspect='equal', cmap='BrBG', vmin=min(covariance_list), vmax=max(covariance_list))
         else:
-            plt.imshow(covariance, aspect='equal', cmap='BrBG', vmin=min, vmax=1)
+            plt.imshow(covariance, aspect='equal', cmap='BrBG', vmin=min_similarity, vmax=1)
 
         plt.yticks(ticks=range(len(list_of_words)), labels=list_of_words)
         plt.xticks(ticks=range(len(list_of_words)), labels=list_of_words, rotation=90)
@@ -739,19 +762,11 @@ class WordEmbedding:
 
             results = []
             for analogy in analogies:
-                # check if word to guess exists
-                if not self.in_vocab(analogy[-1]):
-                    results.append(np.nan)
-                else:
-                    try:
-                        res = self.analogy_test(negative_list=[analogy[0]],
-                                                positive_list=analogy[1:3],
-                                                test_word=analogy[3],
-                                                n=n)
-                        results.append(res)
-                    except KeyError:
-                        # some of the three first words not found
-                        results.append(np.nan)
+                res = self.analogy_test(negative_list=[analogy[0]],
+                                        positive_list=analogy[1:3],
+                                        test_word=analogy[3],
+                                        n=n)
+                results.append(res)
 
             tasks.append(test)
             ratio = 1-results.count(np.nan)/len(results)
@@ -807,27 +822,25 @@ class WordEmbedding:
         for smpl in relatedness + similarity:
             word1 = smpl[0]
             word2 = smpl[1]
-
-            try:
-                prediction = self.similarity(word1, word2)
-            except KeyError:
-                prediction = np.nan
-
+            prediction = self.similarity(word1, word2)
             words1.append(word1)
             words2.append(word2)
             targets.append((float(smpl[2])-5)/5)
             predictions.append(prediction)
 
         if rescale:
-            min_p = min(predictions)
-            max_p = max(predictions)
-            min_t = min(targets)
-            max_t = max(targets)
+            predictions_no_nan = [p for p in predictions if not np.isnan(p)]
+            targets_no_nan = [t for t in targets if not np.isnan(t)]
 
-            predictions = [(p - min_p)/(max_p - min_p) * (1 - (-1)) + (-1)
+            min_p = min(predictions_no_nan)
+            max_p = max(predictions_no_nan)
+            min_t = min(targets_no_nan)
+            max_t = max(targets_no_nan)
+
+            predictions = [(p - min_p)/(max_p - min_p) * (1 - (-1)) + (-1) if not np.isnan(p) else p
                            for p in predictions]
 
-            targets = [(t - min_t)/(max_t - min_t) * (1 - (-1)) + (-1)
+            targets = [(t - min_t)/(max_t - min_t) * (1 - (-1)) + (-1) if not np.isnan(t) else t
                        for t in targets]
 
         if full_output:
@@ -950,24 +963,26 @@ class EmbeddingEnsemble:
                 aggregate (bool): whether to aggregate the results to a single answer
 
          Returns:
-            float or list[float]: if aggregate is true, return average similarity, else return list of member's
-                similarities
+            float or list[float] or np.nan: if aggregate is true, return average similarity, else return list of
+                member's similarities.
         """
         individual = []
         for i in range(self.size):
             emb = self.member(i)
-            if not emb.in_vocab(word1):
-                print(word1, "not in vocab of embedding ", i, ", will skip this member")
-                individual.append(np.nan)
-                continue
-            if not emb.in_vocab(word2):
-                print(word2, "not in vocab of embedding ", i, ", will skip this member")
-                individual.append(np.nan)
-                continue
-            individual.append(emb.similarity(word1, word2))
+
+            try:
+                sim = emb.similarity(word1, word2)
+            except KeyError:
+                sim = np.nan
+
+            individual.append(sim)
 
         if aggregate:
-            return np.mean(individual)
+            individual_not_nan = [i for i in individual if not np.isnan(i)]
+            if individual_not_nan:
+                return np.mean(individual)
+            else:
+                return np.nan
         else:
             return individual
 
@@ -982,24 +997,23 @@ class EmbeddingEnsemble:
             aggregate (bool): whether to aggregate the results to a single answer
 
          Returns:
-             list[list] or list[tuple]: if aggregate is true, return the set of all words returned by the members,
-                indicating in how many member's lists they appeared, else return list of member's word lists
+             list[list] or list[tuple] or np.nan: If aggregate is true, return the set of all words returned by the members,
+                indicating in how many member's lists they appeared, else return list of member's word lists.
         """
         individual = []
         for i in range(self.size):
             emb = self.member(i)
-            if not all(emb.in_vocab(word) for word in positive_list + negative_list):
-                print("some word(s) not found in vocab of embedding ", i, ", will skip this member")
-                individual.append([])
-                continue
-
-            analogy_list = emb._word_vectors.most_similar(negative=negative_list, positive=positive_list, topn=n)
-            individual.append(analogy_list)
+            res = emb.analogy(negative_list=negative_list, positive_list=positive_list, n=n)
+            individual.append(res)
 
         if aggregate:
-            flat_analogy_list = [tpl[0] for member in individual for tpl in member]
+            individual_no_nan = [ind for ind in individual if isinstance(ind, list)]
+            flat_analogy_list = [tpl[0] for member in individual_no_nan for tpl in member]
             c = Counter(flat_analogy_list)
-            return sorted([(k, v) for k, v in c.items()], key=lambda tpl: tpl[1], reverse=True)
+            res = sorted([(k, v) for k, v in c.items()], key=lambda tpl: tpl[1], reverse=True)
+            if res:
+                return res
+            return np.nan
         else:
             return individual
 
@@ -1020,26 +1034,30 @@ class EmbeddingEnsemble:
                 we check whether the test word is in the first m words of the list produced by
                 analogy_test(positive_list, negative_list, n=n).
         """
+        if not any(self.in_vocab(test_word, aggregate=False)):
+            # word is in none of the member's vocabs
+            if aggregate:
+                return np.nan
+            else:
+                return [np.nan]*self.size
 
         if aggregate:
-            cumulative_list = self.analogy(negative_list=negative_list, positive_list=positive_list, n=n, aggregate=True)
+            res = self.analogy(negative_list=negative_list, positive_list=positive_list, n=n, aggregate=True)
+            if not res or not isinstance(res, list):
+                return np.nan
             # extract words
-            cumulative_list = [tpl[0] for tpl in cumulative_list]
+            cumulative_list = [tpl[0] for tpl in res]
+
             return test_word in cumulative_list[:m]
 
         else:
+            individual_lists = self.analogy(negative_list=negative_list, positive_list=positive_list, n=n,
+                                            aggregate=False)
 
             individual = []
-            for i in range(self.size):
-                emb = self.member(i)
-                if not all(emb.in_vocab(word) for word in positive_list + negative_list):
-                    print("some word(s) not found in vocab of embedding ", i, ", will skip this member")
-                    individual.append(np.nan)
-                    continue
+            for analogy_list in individual_lists:
 
-                analogy_tuples = emb._word_vectors.most_similar(positive=positive_list, negative=negative_list, topn=n)
-                analogy_words = [tpl[0] for tpl in analogy_tuples]
-                if test_word in analogy_words:
+                if test_word in analogy_list:
                     individual.append(True)
                 else:
                     individual.append(False)
@@ -1145,21 +1163,13 @@ class EmbeddingEnsemble:
 
             results = []
             for analogy in analogies:
-                # check if word to guess actually exists
-                if not self.in_vocab(analogy[-1]):
-                    results.append(np.nan)
-                else:
-                    try:
-                        res = self.analogy_test(negative_list=analogy[0:1],
-                                                positive_list=analogy[1:3],
-                                                test_word=analogy[3],
-                                                n=n,
-                                                m=m,
-                                                aggregate=True)
-                        results.append(res)
-                    except KeyError:
-                        # one of the first three words was not in vocab
-                        results.append(np.nan)
+                res = self.analogy_test(negative_list=analogy[0:1],
+                                        positive_list=analogy[1:3],
+                                        test_word=analogy[3],
+                                        n=n,
+                                        m=m,
+                                        aggregate=True)
+                results.append(res)
 
             tasks.append(test)
             ratio = 1-results.count(np.nan)/len(results)
@@ -1211,27 +1221,25 @@ class EmbeddingEnsemble:
         for smpl in relatedness + similarity:
             word1 = smpl[0]
             word2 = smpl[1]
-
-            try:
-                prediction = self.similarity(word1, word2, aggregate=True)
-            except KeyError:
-                prediction = np.nan
-
+            prediction = self.similarity(word1, word2, aggregate=True)
             words1.append(word1)
             words2.append(word2)
             targets.append((float(smpl[2])-5)/10)
             predictions.append(prediction)
 
         if rescale:
-            min_p = min(predictions)
-            max_p = max(predictions)
-            min_t = min(targets)
-            max_t = max(targets)
+            predictions_no_nan = [p for p in predictions if not np.isnan(p)]
+            targets_no_nan = [t for t in targets if not np.isnan(t)]
 
-            predictions = [(p - min_p)/(max_p - min_p) * (1 - (-1)) + (-1)
+            min_p = min(predictions_no_nan)
+            max_p = max(predictions_no_nan)
+            min_t = min(targets_no_nan)
+            max_t = max(targets_no_nan)
+
+            predictions = [(p - min_p) / (max_p - min_p) * (1 - (-1)) + (-1) if not np.isnan(p) else p
                            for p in predictions]
 
-            targets = [(t - min_t)/(max_t - min_t) * (1 - (-1)) + (-1)
+            targets = [(t - min_t) / (max_t - min_t) * (1 - (-1)) + (-1) if not np.isnan(t) else t
                        for t in targets]
 
         if full_output:
