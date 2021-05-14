@@ -575,17 +575,27 @@ class WordEmbedding:
         else:
             raise ValueError("Method {} not recognised.".format(method))
 
-    def plot_diversity(self, list_of_words, bandwidth=0.1):
+    def plot_diversity(self, list_of_words, bandwidth=0.1, zoom=100):
         """Plot density of the mutual similarities of all words. """
+        fig = plt.figure()
+        w, h = fig.get_size_inches()
+        fig.set_size_inches(w * zoom / 100, h * zoom / 100)
+
         similarities = []
         for word1, word2 in combinations(list_of_words, 2):
             similarities.append(self.similarity(word1, word2))
 
         sns.kdeplot(np.array(similarities), bw_method=bandwidth)
         plt.xlim(-1, 1)
+        return plt
 
-    def plot_distance_graph(self, list_of_words, nonlinear=False, scaling=2, padding=1.2):
+    def plot_distance_graph(self, list_of_words, nonlinear=False, scaling=2, padding=1.2, zoom=100, annotate=True,
+                            c='lightgray', nodesize=15):
         """Plot a network where edge length shows the similarity between words"""
+        fig = plt.figure()
+        w, h = fig.get_size_inches()
+        fig.set_size_inches(w * zoom / 100, h * zoom / 100)
+
         if nonlinear:
             covariance_list = [np.tanh(scaling * self.similarity(word1, word2)) for word1, word2 in
                                product(list_of_words, repeat=2)]
@@ -596,10 +606,13 @@ class WordEmbedding:
         mapping = {i: word for i, word in enumerate(list_of_words)}
         graph = nx.relabel_nodes(graph, mapping)
         pos = nx.spring_layout(graph, scale=0.2)
-        nx.draw_networkx_nodes(graph, pos, node_size=15, node_color='lightgray')
+        nx.draw_networkx_nodes(graph, pos, node_size=nodesize, node_color=c)
         nx.draw_networkx_edges(graph, pos, edge_color='lightgray')
-        y_off = 0.01
-        nx.draw_networkx_labels(graph, pos={k: ([v[0], v[1] + y_off]) for k, v in pos.items()})
+
+        if annotate:
+            y_off = 0.01
+            nx.draw_networkx_labels(graph, pos={k: ([v[0], v[1] + y_off]) for k, v in pos.items()})
+
         xmax = padding * max(xx for xx, yy in pos.values())
         ymax = padding * max(yy for xx, yy in pos.values())
         xmin = padding * min(xx for xx, yy in pos.values())
@@ -608,13 +621,16 @@ class WordEmbedding:
         plt.ylim(ymin, ymax)
         plt.box(False)
         plt.tight_layout()
+        return plt
 
-    def plot_distance_matrix(self, list_of_words, cluster=True, figsize=5, nonlinear=False, nl_scaling=2,
-                             normalize=False, min_similarity=-1):
+    def plot_distance_matrix(self, list_of_words, cluster=True, zoom=100, normalize_words=False, min_similarity=-1):
         """Plot a matrix where each value shows the similarity between words"""
-        if nonlinear:
-            covariance_list = [np.tanh(nl_scaling * self.similarity(word1, word2))
-                               for word1, word2 in product(list_of_words, repeat=2)]
+
+        if normalize_words:
+            # subtract the centroid and renormalise
+            centroid = self.centroid_of_vectors(list_of_words)
+            vecs = [normalize_vector(self.vector(agent) - centroid) for agent in list_of_words]
+            covariance_list = [np.dot(vec1, vec2) for vec1, vec2 in product(vecs, repeat=2)]
         else:
             covariance_list = [self.similarity(word1, word2) for word1, word2 in product(list_of_words, repeat=2)]
 
@@ -634,37 +650,42 @@ class WordEmbedding:
 
             list_of_words = [list_of_words[i] for i in new_indices]
 
-        plt.figure(figsize=(figsize, figsize))
-        if normalize:
-            plt.imshow(covariance, aspect='equal', cmap='BrBG', vmin=min(covariance_list), vmax=max(covariance_list))
-        else:
-            plt.imshow(covariance, aspect='equal', cmap='BrBG', vmin=min_similarity, vmax=1)
+        fig = plt.figure()
+        w, h = fig.get_size_inches()
+        fig.set_size_inches(w * zoom / 100, h * zoom / 100)
+
+        plt.imshow(covariance, aspect='equal', cmap='BrBG', vmin=min_similarity, vmax=1)
 
         plt.yticks(ticks=range(len(list_of_words)), labels=list_of_words)
         plt.xticks(ticks=range(len(list_of_words)), labels=list_of_words, rotation=90)
         plt.colorbar()
         plt.tight_layout()
+        return plt
 
-    def plot_pca(self, list_of_words, n_comp=2):
+    def plot_pca(self, list_of_words, n_comp=2, zoom=100, annotate=True, c=None):
         """Plot the words in list_of_words in a PCA plot.
 
         Args:
             list_of_words (List[str]): list of words
             n_comp (int): number of principal components
         """
+        fig = plt.figure()
+        w, h = fig.get_size_inches()
+        fig.set_size_inches(w * zoom / 100, h * zoom / 100)
+
         X = np.array([self.vector(word) for word in list_of_words])
         pca_transformer = PCA(n_components=n_comp)
         pca = pca_transformer.fit_transform(X)
 
-        plt.figure()
-        plt.scatter(pca[:, 0], pca[:, 1])
-        # Adding annotations
-        for i, word in enumerate(list_of_words):
-            plt.annotate(' ' + word, xy=(pca[i, 0], pca[i, 1]))
+        plt.scatter(pca[:, 0], pca[:, 1], c=c)
 
-        plt.show()
+        if annotate:
+            for i, word in enumerate(list_of_words):
+                plt.annotate(' ' + word, xy=(pca[i, 0], pca[i, 1]))
 
-    def plot_tsne(self, list_of_words, tsne_ncomp=2, pep=15):
+        return plt
+
+    def plot_tsne(self, list_of_words, tsne_ncomp=2, pep=15, zoom=100, annotate=True, c=None):
         """Plot the words in list_of_words in a PCA plot.
 
         Args:
@@ -672,14 +693,19 @@ class WordEmbedding:
             n_comp (int): number of principal components
         """
 
+        fig = plt.figure()
+        w, h = fig.get_size_inches()
+        fig.set_size_inches(w * zoom / 100, h * zoom / 100)
+
         X = np.array([self.vector(word) for word in list_of_words])
         tsne = TSNE(n_components=tsne_ncomp, random_state=0, perplexity=pep).fit_transform(X)
 
-        plt.figure()
-        plt.scatter(tsne[:, 0], tsne[:, 1])
+        plt.scatter(tsne[:, 0], tsne[:, 1], c=c)
+
         # Adding annotations
-        for i, word in enumerate(list_of_words):
-            plt.annotate(' ' + word, xy=(tsne[i, 0], tsne[i, 1]))
+        if annotate:
+            for i, word in enumerate(list_of_words):
+                plt.annotate(' ' + word, xy=(tsne[i, 0], tsne[i, 1]))
 
         plt.show()
 
@@ -769,13 +795,13 @@ class WordEmbedding:
                 results.append(res)
 
             tasks.append(test)
-            ratio = 1-results.count(np.nan)/len(results)
+            ratio = 1 - results.count(np.nan) / len(results)
             ratio_in_vocab.append(ratio)
             if ratio == 0.0:
                 precisions.append(np.nan)
             else:
                 results_no_nan = [r for r in results if not np.isnan(r)]
-                precisions.append(results_no_nan.count(True)/len(results_no_nan))
+                precisions.append(results_no_nan.count(True) / len(results_no_nan))
 
         if full_output:
             df = pd.DataFrame({'task': tasks,
@@ -825,7 +851,7 @@ class WordEmbedding:
             prediction = self.similarity(word1, word2)
             words1.append(word1)
             words2.append(word2)
-            targets.append((float(smpl[2])-5)/5)
+            targets.append((float(smpl[2]) - 5) / 5)
             predictions.append(prediction)
 
         if rescale:
@@ -837,10 +863,10 @@ class WordEmbedding:
             min_t = min(targets_no_nan)
             max_t = max(targets_no_nan)
 
-            predictions = [(p - min_p)/(max_p - min_p) * (1 - (-1)) + (-1) if not np.isnan(p) else p
+            predictions = [(p - min_p) / (max_p - min_p) * (1 - (-1)) + (-1) if not np.isnan(p) else p
                            for p in predictions]
 
-            targets = [(t - min_t)/(max_t - min_t) * (1 - (-1)) + (-1) if not np.isnan(t) else t
+            targets = [(t - min_t) / (max_t - min_t) * (1 - (-1)) + (-1) if not np.isnan(t) else t
                        for t in targets]
 
         if full_output:
@@ -855,10 +881,10 @@ class WordEmbedding:
             n_not_nan = 0
             for t, p in zip(targets, predictions):
                 if not np.isnan(p):
-                    least_sq += (p-t)**2
+                    least_sq += (p - t) ** 2
                     n_not_nan += 1
 
-            return least_sq/n_not_nan
+            return least_sq / n_not_nan
 
 
 class EmbeddingEnsemble:
@@ -1039,7 +1065,7 @@ class EmbeddingEnsemble:
             if aggregate:
                 return np.nan
             else:
-                return [np.nan]*self.size
+                return [np.nan] * self.size
 
         if aggregate:
             res = self.analogy(negative_list=negative_list, positive_list=positive_list, n=n, aggregate=True)
@@ -1172,7 +1198,7 @@ class EmbeddingEnsemble:
                 results.append(res)
 
             tasks.append(test)
-            ratio = 1-results.count(np.nan)/len(results)
+            ratio = 1 - results.count(np.nan) / len(results)
             ratio_in_vocab.append(ratio)
             if ratio == 0.0:
                 precisions.append(np.nan)
@@ -1224,7 +1250,7 @@ class EmbeddingEnsemble:
             prediction = self.similarity(word1, word2, aggregate=True)
             words1.append(word1)
             words2.append(word2)
-            targets.append((float(smpl[2])-5)/10)
+            targets.append((float(smpl[2]) - 5) / 10)
             predictions.append(prediction)
 
         if rescale:
@@ -1254,7 +1280,7 @@ class EmbeddingEnsemble:
             n_not_nan = 0
             for t, p in zip(targets, predictions):
                 if not np.isnan(p):
-                    least_sq += (p-t)**2
+                    least_sq += (p - t) ** 2
                     n_not_nan += 1
 
-            return least_sq/n_not_nan
+            return least_sq / n_not_nan

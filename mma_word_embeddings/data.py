@@ -75,9 +75,8 @@ def clean(path_to_json,
 
     for idx, row in enumerate(data_loader):
 
-        if "items read" in row:
-            print(row)
-            break
+        if idx % 10000 == 0:
+            print("...went through first ", idx, " documents...")
 
         # turn string into dictionary of the
         # form {'column_1': content1, 'column_2': content2,...}
@@ -106,8 +105,13 @@ def clean(path_to_json,
 
             if agent_column is not None:
                 # prepend with agent tag
-                name = row_dict[agent_column].strip().replace(" ", "_")
-                chunk = "agent_" + name + " " + chunk
+                if not isinstance(agent_column, list):
+                    agent_column = [agent_column]
+
+                name = "agent"
+                for col in agent_column:
+                    name += "_" + str(row_dict[col]).strip().replace(" ", "_")
+                chunk = name + " " + chunk
 
             chunk = re.sub(r'http\S+', '', chunk)
 
@@ -141,9 +145,6 @@ def clean(path_to_json,
             if chunk:
                 with open(output_train, 'a+') as f:
                     f.write('%s\n' % chunk)
-
-        if idx % 10000 == 0:
-            print("...cleaned first ", idx, " documents...")
 
     data_loader.close()
 
