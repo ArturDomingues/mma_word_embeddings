@@ -623,7 +623,8 @@ class WordEmbedding:
         plt.tight_layout()
         return plt
 
-    def plot_distance_matrix(self, list_of_words, cluster=True, zoom=100, normalize_words=False, min_similarity=-1):
+    def plot_distance_matrix(self, list_of_words, cluster=True, zoom=100, normalize_words=False, vmin=None,
+                             vmax=None):
         """Plot a matrix where each value shows the similarity between words"""
 
         if normalize_words:
@@ -654,7 +655,12 @@ class WordEmbedding:
         w, h = fig.get_size_inches()
         fig.set_size_inches(w * zoom / 100, h * zoom / 100)
 
-        plt.imshow(covariance, aspect='equal', cmap='BrBG', vmin=min_similarity, vmax=1)
+        if vmin is None:
+            vmin = min(covariance_list)
+        if vmax is None:
+            vmax = max(covariance_list)
+
+        plt.imshow(covariance, aspect='equal', cmap='BrBG', vmin=vmin, vmax=vmax)
 
         plt.yticks(ticks=range(len(list_of_words)), labels=list_of_words)
         plt.xticks(ticks=range(len(list_of_words)), labels=list_of_words, rotation=90)
