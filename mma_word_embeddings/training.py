@@ -90,6 +90,7 @@ def train_word2vec_model(
         path_description,
         output_path,
         hyperparameters={},
+        normalize=True,
         n_models=1,
         share_of_original_data=1.,
         chunk_size=10000,
@@ -105,6 +106,7 @@ def train_word2vec_model(
         output_path (str): where to save the model and description file; does not include an ending (.emb will
             be automatically added)
         hyperparameters (dict): dictionary of hyperparameters that are directly fed into Word2Vec model
+        normalize (bool): whether to normalize the word vectors
         n_models (int): number of models to train
         share_of_original_data (float): each line loaded from the data file is discarded
             with this ratio; use 1. to use all data
@@ -174,8 +176,9 @@ def train_word2vec_model(
             model.build_vocab(training_generator, update=True)
             model.train(corpus_iterable=training_generator, total_examples=model.corpus_count, epochs=model.epochs)
 
-        # normalise the word vectors
-        model.wv.init_sims(replace=True)
+        if normalize:
+            # normalise the word vectors
+            model.wv.init_sims(replace=True)
         # extract embedding
         emb = model.wv
 
@@ -202,6 +205,7 @@ def train_word2vec_model(
         log += f"Used the data seed {data_seed} \n."
         log += "The model generating the embedding was trained with the following " \
                "hyperparameters: \n {}\n".format(hyperparameters)
+        log += f"Word vectors were normalized: {normalize}"
 
         with open(path_description_out, "w") as f:
             f.write(log)
