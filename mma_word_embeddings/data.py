@@ -71,7 +71,7 @@ def clean(path_to_json,
 
     print("Start cleaning documents...")
     # load a json reader that can read files line-by-line
-    data_loader = open(path_to_json)
+    data_loader = open(path_to_json, "r")
 
     for idx, row in enumerate(data_loader):
 
@@ -80,7 +80,11 @@ def clean(path_to_json,
 
         # turn string into dictionary of the
         # form {'column_1': content1, 'column_2': content2,...}
-        row_dict = json.loads(row)
+        try:
+            row_dict = json.loads(row)
+        except json.decoder.JSONDecodeError:
+            print(f"Decoding problem in row {idx} with content <{row}>. Breaking here.")
+            break
 
         # apply filter
         ignore_row = False
@@ -159,6 +163,113 @@ def clean(path_to_json,
         description += "...split documents into sentences...\n"
     if agent_column is not None:
         description += "...prepend with agent tag...\n"
+    description += r"...remove all words that have single upper case letters surrounded by lower case " \
+                   r"letters (to get rid of javascript) " + "\n"
+    description += r"...remove html formatting with BeautifulSoup (html.parser) " + "\n"
+    description += r"...remove expression '\xad' " + "\n"
+    description += r"...remove expression 'displayad'" + "\n"
+    description += r"...remove punctuation (but keep digits)" + "\n"
+    description += r"...remove words that contain substrings {}, ".format(GARBAGE) + "\n"
+    if remove_stopwords:
+        description += r"...remove words from nltk's list of english stopwords (making exceptions for {}),".format(
+            STOPWORD_EXCEPTIONS) + "\n"
+    description += r"...make all words lower case, " + "\n"
+    if lemmatize:
+        description += r"...lemmatize words with nltk's WordNetLemmatizer, " + "\n"
+    description += r"... altogether, {} lines were processed".format(idx)
+
+    with open(output_description, 'a') as f:
+        f.write('%s' % description)
+
+
+def clean_txt(path_to_txt,
+          output_path,
+          extract_sentences=False,
+          remove_stopwords=False,
+          lemmatize=False):
+    """Save a preprocessed representation of the data to a new file.
+
+    Args:
+        path_to_json (str): full path to json-lines (.jl or .jsonl) file that contains the original data
+        text_column (str): name of the column that contains the documents
+        output_path (str): path to save training data and description to; does not contain a file ending
+        extract_sentences (bool): if true, save one sentence per line into the new file; else save one document per line
+        remove_stopwords (bool): if true, remove standard stop words from training data
+        lemmatize (bool): if true, replace words by their stems
+        agent_column (None or str): if string, represents the name of the agent column;
+            append text in text_column with agent tag before cleaning the data
+    """
+    # check if the output file already exists, to avoid overwriting
+    output_train = output_path + "_training-data.txt"
+    if os.path.exists(output_train):
+        raise ValueError(f"File {output_train} already exists.")
+    output_description = output_path + "_training-data" + "_description.txt"
+    if os.path.exists(output_description):
+        raise ValueError(f"File {output_description} already exists.")
+
+    print("Start cleaning documents...")
+    # load a json reader that can read files line-by-line
+    data_loader = open(path_to_txt)
+
+    for idx, row in enumerate(data_loader):
+
+        if not row:
+            continue
+
+        if idx % 10000 == 0:
+            print("...went through first ", idx, " documents...")
+
+        # retrieve document in row
+        document = row
+
+        if extract_sentences:
+            subdocuments = document.split(". ")
+        else:
+            subdocuments = [document]
+
+        for chunk in subdocuments:
+
+            chunk = re.sub(r'http\S+', '', chunk)
+
+            chunk = re.sub(r'\b[a-z]+(?:[A-Z][a-z]+)+\b', '', chunk)
+
+            chunk = BeautifulSoup(chunk, "html.parser").text
+
+            chunk = chunk.replace(r'\xad', '')
+
+            chunk = chunk.replace('displayad', '')
+
+            chunk = ''.join(char for word in chunk for char in word
+                               if char not in PUNCTUATION)
+
+            # split string into list of words separated by whitespace
+            chunk = chunk.split()
+
+            chunk = [word for word in chunk if all(g not in word for g in GARBAGE)]
+
+            if remove_stopwords:
+                chunk = [word for word in chunk if word not in stop or word in STOPWORD_EXCEPTIONS]
+
+            chunk = [word.lower() for word in chunk]
+
+            if lemmatize:
+                lm = nltk.WordNetLemmatizer()
+                chunk = [lm.lemmatize(word) for word in chunk]
+
+            chunk = " ".join(chunk)
+            # save cleaned chunk in a row
+            if chunk:
+                with open(output_train, 'a+') as f:
+                    f.write('%s\n' % chunk)
+
+    data_loader.close()
+
+    # document what has been done during pre-processing and save as file
+    now = datetime.datetime.now()
+    description = "{} - Data was loaded from file {}. \n".format(now, path_to_txt)
+    description += "Data preprocessing included the following steps: \n"
+    if extract_sentences:
+        description += "...split documents into sentences...\n"
     description += r"...remove all words that have single upper case letters surrounded by lower case " \
                    r"letters (to get rid of javascript) " + "\n"
     description += r"...remove html formatting with BeautifulSoup (html.parser) " + "\n"

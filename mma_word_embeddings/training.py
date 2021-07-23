@@ -1,7 +1,7 @@
-# This file contains a wrapper class for word2vec models training word trained_embeddings
+# This file contains a wrapper class for word2vec or doc2vec models training word trained_embeddings
 import os
 import numpy as np
-from gensim.models import Word2Vec
+from gensim.models import Word2Vec, Doc2Vec
 from random import seed, shuffle
 
 
@@ -85,11 +85,12 @@ class DataGenerator(object):
                 yield el
 
 
-def train_word2vec_model(
+def train_embedding(
         path_training_data,
         path_description,
         output_path,
         hyperparameters={},
+        which="word2vec",
         normalize=True,
         n_models=1,
         share_of_original_data=1.,
@@ -151,6 +152,12 @@ def train_word2vec_model(
             if os.path.isfile(path_description_out):
                 raise ValueError("Path {} for description already exists.".format(path_description_out))
     # ---------------
+    if which == "word2vec":
+        Algo = Word2Vec
+    elif which == "doc2vec":
+        Algo = Doc2Vec
+    else:
+        raise ValueError("Choose word2vec or doc2vec")
 
     for m in range(n_models):
 
@@ -164,7 +171,7 @@ def train_word2vec_model(
 
         if path_pretraining_data is None:
             # do not pretrain
-            model = Word2Vec(sentences=training_generator, **hyperparameters)
+            model = Algo(sentences=training_generator, **hyperparameters)
 
         else:
             pretraining_generator = DataGenerator(path_pretraining_data,
@@ -172,7 +179,7 @@ def train_word2vec_model(
                                                   chunk_size,
                                                   random_buffer_size,
                                                   data_seed + m)
-            model = Word2Vec(sentences=pretraining_generator, **hyperparameters)
+            model = Algo(sentences=pretraining_generator, **hyperparameters)
             model.build_vocab(training_generator, update=True)
             model.train(corpus_iterable=training_generator, total_examples=model.corpus_count, epochs=model.epochs)
 

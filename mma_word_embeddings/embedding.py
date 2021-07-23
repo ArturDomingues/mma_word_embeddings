@@ -55,7 +55,7 @@ class WordEmbedding:
     def __str__(self):
         return "<Embedding {}>".format(self.path_to_embedding)
 
-    def vocab(self, n_grams=None):
+    def vocab(self, n_grams=None, sort=True):
         """Return the vocabulary in the embedding."""
 
         if n_grams is not None:
@@ -68,8 +68,10 @@ class WordEmbedding:
                     voc.append(word)
         else:
             voc = list(self._word_vectors.index_to_key)
-
-        return sorted(voc)
+	if sort:
+             return sorted(voc)
+        else:
+            return voc
 
     def vocab_size(self):
         """Return the size of the vocabulary in the embedding."""
@@ -106,27 +108,21 @@ class WordEmbedding:
 
         return sample(vocab, n_words)
 
-    def vocab_containing(self, word_part, show_frequency=False):
+    def vocab_containing(self, word_part, sorted=True):
         """Return all words in the vocab that contain the word_part as a substring.
+       
 
         Args:
             word_part (str): sequence of letters like "afro" or "whit"
-            show_frequency (bool): if True, also show frequencies
+            sorted (bool): if False, sort according to frequency in the original data 
         If the training data is loaded, this function will show frequencies as well.
         """
-        if show_frequency:
-            if self.training_data is None:
-                raise ValueError("This function needs access to the training data. "
-                                 "Please load the training data with the 'load_training_data()' "
-                                 "function and then try again. ")
-
-            subset = [[w, self.frequency_in_training_data(w)] for w in sorted(list(self._word_vectors.key_to_index)) if
-                      word_part in w]
-            subset = pd.DataFrame(subset, columns=["Word", "Frequency"])
-            subset = subset.sort_values(by='Frequency', axis=0, ascending=False)
-        else:
-            subset = [w for w in sorted(list(self._word_vectors.key_to_index)) if word_part in w]
-        return subset
+        
+        subset = [w for w in list(self._word_vectors.key_to_index) if word_part in w]
+        if sorted:
+            return sorted(subset)
+	else:
+	    return subset
 
     def vector(self, word):
         """Return the normalized vector representation of 'word' in the embedding."""
