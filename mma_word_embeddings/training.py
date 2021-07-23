@@ -290,7 +290,7 @@ def train_doc2vec_model(
 
 
         # extract embedding
-        emb = model.
+        emb = model.docvecs
 
         # save the current embedding
         if n_models == 1:
