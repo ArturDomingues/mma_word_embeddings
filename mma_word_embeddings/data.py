@@ -45,7 +45,8 @@ def clean(path_to_json,
           extract_sentences=True,
           remove_stopwords=False,
           lemmatize=False,
-          agent_column=None):
+          agent_column=None,
+          leave_hashtag_symbol=True):
     """Save a preprocessed representation of the data to a new file.
 
     Args:
@@ -127,6 +128,8 @@ def clean(path_to_json,
 
             chunk = chunk.replace('displayad', '')
 
+            if leave_hashtag_symbol:
+                PUNCTUATION.replace("#", "")
             chunk = ''.join(char for word in chunk for char in word
                                if char not in PUNCTUATION)
 
@@ -168,7 +171,12 @@ def clean(path_to_json,
     description += r"...remove html formatting with BeautifulSoup (html.parser) " + "\n"
     description += r"...remove expression '\xad' " + "\n"
     description += r"...remove expression 'displayad'" + "\n"
-    description += r"...remove punctuation (but keep digits)" + "\n"
+    description += r"...remove punctuation (but keep digits "
+    if leave_hashtag_symbol:
+        description += r"and hashtag symbol)" + "\n"
+    else:
+        description += r")" + "\n"
+
     description += r"...remove words that contain substrings {}, ".format(GARBAGE) + "\n"
     if remove_stopwords:
         description += r"...remove words from nltk's list of english stopwords (making exceptions for {}),".format(
