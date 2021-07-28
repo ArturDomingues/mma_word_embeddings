@@ -68,8 +68,8 @@ class WordEmbedding:
                     voc.append(word)
         else:
             voc = list(self._word_vectors.index_to_key)
-	if sort:
-             return sorted(voc)
+        if sort:
+            return sorted(voc)
         else:
             return voc
 
