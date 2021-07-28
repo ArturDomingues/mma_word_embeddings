@@ -108,7 +108,7 @@ class WordEmbedding:
 
         return sample(vocab, n_words)
 
-    def vocab_containing(self, word_part, sorted=True):
+    def vocab_containing(self, word_part, sort=True):
         """Return all words in the vocab that contain the word_part as a substring.
        
 
@@ -119,10 +119,9 @@ class WordEmbedding:
         """
         
         subset = [w for w in list(self._word_vectors.key_to_index) if word_part in w]
-        if sorted:
+        if sort:
             return sorted(subset)
-	else:
-	    return subset
+        return subset
 
     def vector(self, word):
         """Return the normalized vector representation of 'word' in the embedding."""
