@@ -93,7 +93,8 @@ def train_word2vec_model(
         hyperparameters_pretraining={},
         normalize=True,
         n_models=1,
-        share_of_original_data=1.,
+        share_data=1.,
+        share_data_pretraining=1.,
         chunk_size=10000,
         random_buffer_size=100000,
         path_pretraining_data=None,
@@ -158,7 +159,7 @@ def train_word2vec_model(
         print("Training model ", m + 1)
 
         training_generator = DataGenerator(path_training_data,
-                                           share_of_original_data,
+                                           share_data,
                                            chunk_size,
                                            random_buffer_size,
                                            data_seed + m)
@@ -169,7 +170,7 @@ def train_word2vec_model(
 
         else:
             pretraining_generator = DataGenerator(path_pretraining_data,
-                                                  1.0,
+                                                  share_data_pretraining,
                                                   chunk_size,
                                                   random_buffer_size,
                                                   data_seed + m)

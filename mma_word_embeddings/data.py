@@ -46,7 +46,8 @@ def clean(path_to_json,
           remove_stopwords=False,
           lemmatize=False,
           agent_column=None,
-          leave_hashtag_symbol=True):
+          leave_hashtag_at_symbol=True,
+          ):
     """Save a preprocessed representation of the data to a new file.
 
     Args:
@@ -58,6 +59,7 @@ def clean(path_to_json,
             of the strings is found will be processed.
         extract_sentences (bool): if true, save one sentence per line into the new file; else save one document per line
         remove_stopwords (bool): if true, remove standard stop words from training data
+        leave_hashtag_at_symbol (bool): if true, leave # and @
         lemmatize (bool): if true, replace words by their stems
         agent_column (None or str): if string, represents the name of the agent column;
             append text in text_column with agent tag before cleaning the data
@@ -73,6 +75,9 @@ def clean(path_to_json,
     print("Start cleaning documents...")
     # load a json reader that can read files line-by-line
     data_loader = open(path_to_json, "r")
+
+    if leave_hashtag_at_symbol:
+        PUNCT = PUNCTUATION.replace("#", "").replace("@", "")
 
     for idx, row in enumerate(data_loader):
 
@@ -128,10 +133,8 @@ def clean(path_to_json,
 
             chunk = chunk.replace('displayad', '')
 
-            if leave_hashtag_symbol:
-                PUNCTUATION.replace("#", "")
             chunk = ''.join(char for word in chunk for char in word
-                               if char not in PUNCTUATION)
+                               if char not in PUNCT)
 
             # split string into list of words separated by whitespace
             chunk = chunk.split()
@@ -172,8 +175,8 @@ def clean(path_to_json,
     description += r"...remove expression '\xad' " + "\n"
     description += r"...remove expression 'displayad'" + "\n"
     description += r"...remove punctuation (but keep digits "
-    if leave_hashtag_symbol:
-        description += r"and hashtag symbol)" + "\n"
+    if leave_hashtag_at_symbol:
+        description += r"and hashtag and at symbol)" + "\n"
     else:
         description += r")" + "\n"
 
