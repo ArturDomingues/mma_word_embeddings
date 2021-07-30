@@ -183,7 +183,7 @@ def train_word2vec_model(
                                                random_buffer_size,
                                                data_seed + m)
             model = Word2Vec(sentences=training_generator, **hyperparameters)
-
+            acc = model.get_latest_training_loss()
         if continue_training:
 
             training_generator2 = DataGenerator(path_continue_training,
@@ -197,10 +197,10 @@ def train_word2vec_model(
                         total_examples=total_examples_continue_training,
                         epochs=epochs_continue_training,
                         word_count=word_count_continue_training)
-
+            acc2 = model.get_latest_training_loss()
         if normalize:
             # normalise the word vectors
-            model.wv.init_sims(replace=True)
+            model.wv.init_sims()
         # extract embedding
         emb = model.wv
 
@@ -225,7 +225,11 @@ def train_word2vec_model(
         log += f"Used the data seed {data_seed} \n."
         log += "The model generating the embedding was trained with the following " \
                "hyperparameters: \n {}\n".format(hyperparameters)
-        log += "Continued training with settings {}.\n".format(continue_training)
+        log += f"Training accurracy was {acc} \n."
+        if continue_training:
+            log += f"Continued training with settings {continue_training}.\n"
+            log += f"During second training the accuracy was {acc2}.\n"
+
         log += f"Word vectors were normalized: {normalize}"
 
         with open(path_description_out, "w") as f:
