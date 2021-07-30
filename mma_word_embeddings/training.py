@@ -90,6 +90,7 @@ def train_word2vec_model(
         path_description,
         output_path,
         hyperparameters={},
+        hyperparameters_pretraining={},
         normalize=True,
         n_models=1,
         share_of_original_data=1.,
@@ -172,9 +173,9 @@ def train_word2vec_model(
                                                   chunk_size,
                                                   random_buffer_size,
                                                   data_seed + m)
-            model = Word2Vec(sentences=pretraining_generator, **hyperparameters)
+            model = Word2Vec(sentences=pretraining_generator, **hyperparameters_pretraining)
             model.build_vocab(training_generator, update=True)
-            model.train(corpus_iterable=training_generator, total_examples=model.corpus_count, epochs=model.epochs)
+            model.train(corpus_iterable=training_generator, total_examples=model.corpus_count, epochs=model.epochs, **hyperparameters)
 
         if normalize:
             # normalise the word vectors
