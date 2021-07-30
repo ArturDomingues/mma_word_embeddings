@@ -844,11 +844,12 @@ class WordEmbedding:
             similarity = f.readlines()
             similarity = [i.lower().strip('\n').split('\t') for i in similarity]
 
+        test_data = list(set(relatedness + similarity))
         words1 = []
         words2 = []
         targets = []
         predictions = []
-        for smpl in relatedness + similarity:
+        for smpl in test_data:
             word1 = smpl[0]
             word2 = smpl[1]
             prediction = self.similarity(word1, word2)
@@ -877,6 +878,7 @@ class WordEmbedding:
                                'word2': words2,
                                'target': targets,
                                'prediction': predictions})
+            df = df.sort_values(by=['target'], ascending=False)
             return df
         else:
 

@@ -97,7 +97,7 @@ def train_word2vec_model(
         share_data_pretraining=1.,
         chunk_size=10000,
         random_buffer_size=100000,
-        path_pretraining_data=None,
+        pretraining_data=None,
         data_seed=None,
 ):
     """Trains a single embedding or an ensemble of embeddings.
@@ -110,7 +110,7 @@ def train_word2vec_model(
         hyperparameters (dict): dictionary of hyperparameters that are directly fed into Word2Vec model
         normalize (bool): whether to normalize the word vectors
         n_models (int): number of models to train
-        share_of_original_data (float): each line loaded from the data file is discarded
+        share_data (float): each line loaded from the data file is discarded
             with this ratio; use 1. to use all data
         chunk_size (int): Return so many lines from the random buffer at once before filling it up again. Larger
             chunk sizes speed up training, but decrease randomness.
@@ -118,7 +118,7 @@ def train_word2vec_model(
             returning the samples in a chunk. Higher values take more RAM but lead to more randomness
             when sampling the data. A value equal to the number of all samples would lead to perfectly
             random samples.
-        path_pretraining_data (str): if model should get pre-trained, specify this path to the pretraining data set;
+        pretraining_data (str): if model should get pre-trained, specify this path to the pretraining data set;
             the full dataset will be used for pre-training
         data_seed (int): Random seed set for sampling. When more than one model is created, the ith model
          will use data_seed + i as a seed for the data.
@@ -128,8 +128,8 @@ def train_word2vec_model(
     # INPUT paths
     if not os.path.isfile(path_training_data):
         raise ValueError(f"Unknown path to training data {path_training_data}")
-    if path_pretraining_data is not None and not os.path.isfile(path_pretraining_data):
-        raise ValueError(f"Unknown path to pretraining data {path_pretraining_data}")
+    if isinstance(pretraining_data, str) and not os.path.isfile(pretraining_data):
+        raise ValueError(f"Unknown path to pretraining data {pretraining_data}")
     if not os.path.isfile(path_description):
         raise ValueError(f"Unknown path to data description file {path_description}")
 
@@ -164,17 +164,22 @@ def train_word2vec_model(
                                            random_buffer_size,
                                            data_seed + m)
 
-        if path_pretraining_data is None:
+        if pretraining_data is None:
             # do not pretrain
             model = Word2Vec(sentences=training_generator, **hyperparameters)
 
         else:
-            pretraining_generator = DataGenerator(path_pretraining_data,
-                                                  share_data_pretraining,
-                                                  chunk_size,
-                                                  random_buffer_size,
-                                                  data_seed + m)
-            model = Word2Vec(sentences=pretraining_generator, **hyperparameters_pretraining)
+            if isinstance(pretraining_data, str):
+                # pretrain from scratch
+                pretraining_generator = DataGenerator(pretraining_data,
+                                                      share_data_pretraining,
+                                                      chunk_size,
+                                                      random_buffer_size,
+                                                      data_seed + m)
+                model = Word2Vec(sentences=pretraining_generator, **hyperparameters_pretraining)
+            else:
+                model = pretraining_data
+
             model.build_vocab(training_generator, update=True)
             model.train(corpus_iterable=training_generator, total_examples=model.corpus_count, epochs=model.epochs, **hyperparameters)
 
