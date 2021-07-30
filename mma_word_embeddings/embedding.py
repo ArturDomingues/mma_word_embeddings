@@ -838,11 +838,11 @@ class WordEmbedding:
         file_path = os.path.dirname(__file__)
         with open(file_path + '/datasets/wordsim_relatedness_goldstandard.txt', 'r') as f:
             relatedness = f.readlines()
-            relatedness = [i.lower().strip('\n').split('\t') for i in relatedness]
+            relatedness = [tuple(i.lower().strip('\n').split('\t')) for i in relatedness]
 
         with open(file_path + '/datasets/wordsim_similarity_goldstandard.txt', 'r') as f:
             similarity = f.readlines()
-            similarity = [i.lower().strip('\n').split('\t') for i in similarity]
+            similarity = [tuple(i.lower().strip('\n').split('\t')) for i in similarity]
 
         test_data = list(set(relatedness + similarity))
         words1 = []
