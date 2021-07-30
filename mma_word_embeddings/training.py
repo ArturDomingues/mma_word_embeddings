@@ -86,18 +86,14 @@ class DataGenerator(object):
 
 
 def train_word2vec_model(
-        path_training_data,
-        path_description,
+        training_data,
         output_path,
+        path_description=None,
         hyperparameters={},
-        hyperparameters_pretraining={},
-        epochs_continue_training=10,
-        total_examples_continue_training=None,
-        word_count_continue_training=0,
+        share_data=1.,
+        continue_training={},
         normalize=True,
         n_models=1,
-        share_data=1.,
-        share_data_pretraining=1.,
         chunk_size=10000,
         random_buffer_size=100000,
         pretraining_data=None,
@@ -106,7 +102,7 @@ def train_word2vec_model(
     """Trains a single embedding or an ensemble of embeddings.
 
     Args:
-        path_training_data (str): location of training data, one sentence/document per line
+       training_data (str): location of training data, one sentence/document per line
         path_description (str): location of description file for training data
         output_path (str): where to save the model and description file; does not include an ending (.emb will
             be automatically added)
@@ -126,13 +122,27 @@ def train_word2vec_model(
         data_seed (int): Random seed set for sampling. When more than one model is created, the ith model
          will use data_seed + i as a seed for the data.
     """
+    # check paths and arguments before starting costly training ---------
 
-    # check paths before starting costly training ---------
+    if continue_training:
+        path_continue_training = continue_training["path_data"]
+        if not os.path.isfile(path_continue_training):
+            raise ValueError(f"Unknown path to pretraining data {path_continue_training}")
+        share_data_continue_training = continue_training["share_data"]
+        epochs_continue_training = continue_training["epochs"]
+        total_examples_continue_training = continue_training["total_examples"]
+        word_count_continue_training = continue_training["word_count"]
+        chunk_size_continue_training = continue_training.pop("chunk_size", chunk_size)
+        random_buffer_size_continue_training = continue_training.pop("random_buffer_size", random_buffer_size)
+
     # INPUT paths
-    if not os.path.isfile(path_training_data):
-        raise ValueError(f"Unknown path to training data {path_training_data}")
-    if isinstance(pretraining_data, str) and not os.path.isfile(pretraining_data):
-        raise ValueError(f"Unknown path to pretraining data {pretraining_data}")
+    if isinstance(training_data, str) and not os.path.isfile(training_data):
+        raise ValueError(f"Unknown path to training data {training_data}")
+    if path_description is None:
+        if isinstance(training_data, str):
+            path_description = training_data[:-4] + "_description.txt"
+        else:
+            raise ValueError(f"Please specify path to description of training data.")
     if not os.path.isfile(path_description):
         raise ValueError(f"Unknown path to data description file {path_description}")
 
@@ -155,36 +165,35 @@ def train_word2vec_model(
                 raise ValueError("Path {} for description already exists.".format(path_out))
             if os.path.isfile(path_description_out):
                 raise ValueError("Path {} for description already exists.".format(path_description_out))
+
+    hyperparameters["compute_loss"] = True
     # ---------------
 
     for m in range(n_models):
 
         print("Training model ", m + 1)
 
-        training_generator = DataGenerator(path_training_data,
-                                           share_data,
-                                           chunk_size,
-                                           random_buffer_size,
-                                           data_seed + m)
-
-        if pretraining_data is None:
-            # do not pretrain
+        if not isinstance(training_data, str):
+            # training_data contains a trained model
+            model = training_data
+        else:
+            training_generator = DataGenerator(training_data,
+                                               share_data,
+                                               chunk_size,
+                                               random_buffer_size,
+                                               data_seed + m)
             model = Word2Vec(sentences=training_generator, **hyperparameters)
 
-        else:
-            if isinstance(pretraining_data, str):
-                # pretrain from scratch
-                pretraining_generator = DataGenerator(pretraining_data,
-                                                      share_data_pretraining,
-                                                      chunk_size,
-                                                      random_buffer_size,
-                                                      data_seed + m)
-                model = Word2Vec(sentences=pretraining_generator, **hyperparameters_pretraining)
-            else:
-                model = pretraining_data
+        if continue_training:
 
-            model.build_vocab(training_generator, update=True)
-            model.train(corpus_iterable=training_generator,
+            training_generator2 = DataGenerator(path_continue_training,
+                                                share_of_original_data=share_data_continue_training,
+                                                chunk_size=chunk_size_continue_training,
+                                                random_buffer_size=random_buffer_size_continue_training,
+                                                data_seed=data_seed + m)
+
+            model.build_vocab(training_generator2, update=True)
+            model.train(corpus_iterable=training_generator2,
                         total_examples=total_examples_continue_training,
                         epochs=epochs_continue_training,
                         word_count=word_count_continue_training)
@@ -209,124 +218,16 @@ def train_word2vec_model(
         # save description
         with open(path_description) as f:
             description = f.readlines()
-            description = "".join(description)
-        log = "The following training data was used:\n\n{}\n".format(description)
-        if path_pretraining_data is not None:
-            log += f"Model was pretrained with data loaded from: {path_pretraining_data}."
-        log += "Used {}% of original data for training.\n".format(100 * share_of_original_data)
+        description = "".join(description)
+        log = f"Model was trained with data loaded from {training_data} with the following specs: \n {description} \n\n"
+        log += "Used {}% of original data for training.\n".format(100 * share_data)
         log += "Used a random buffer size of {} lines and chunks of size {}.\n".format(random_buffer_size, chunk_size)
         log += f"Used the data seed {data_seed} \n."
         log += "The model generating the embedding was trained with the following " \
                "hyperparameters: \n {}\n".format(hyperparameters)
+        log += "Continued training with settings {}.\n".format(continue_training)
         log += f"Word vectors were normalized: {normalize}"
 
         with open(path_description_out, "w") as f:
             f.write(log)
 
-
-def train_doc2vec_model(
-        path_training_data,
-        path_description,
-        output_path,
-        hyperparameters={},
-        normalize=True,
-        n_models=1,
-        share_of_original_data=1.,
-        chunk_size=10000,
-        random_buffer_size=100000,
-        data_seed=None,
-):
-    """Trains a single embedding or an ensemble of embeddings.
-
-    Args:
-        path_training_data (str): location of training data, one sentence/document per line
-        path_description (str): location of description file for training data
-        output_path (str): where to save the model and description file; does not include an ending (.emb will
-            be automatically added)
-        hyperparameters (dict): dictionary of hyperparameters that are directly fed into Word2Vec model
-        normalize (bool): whether to normalize the word vectors
-        n_models (int): number of models to train
-        share_of_original_data (float): each line loaded from the data file is discarded
-            with this ratio; use 1. to use all data
-        chunk_size (int): Return so many lines from the random buffer at once before filling it up again. Larger
-            chunk sizes speed up training, but decrease randomness.
-        random_buffer_size (int): Keep so many lines from the data file in a buffer which is shuffled before
-            returning the samples in a chunk. Higher values take more RAM but lead to more randomness
-            when sampling the data. A value equal to the number of all samples would lead to perfectly
-            random samples.
-        path_pretraining_data (str): if model should get pre-trained, specify this path to the pretraining data set;
-            the full dataset will be used for pre-training
-        data_seed (int): Random seed set for sampling. When more than one model is created, the ith model
-         will use data_seed + i as a seed for the data.
-    """
-
-    # check paths before starting costly training ---------
-    # INPUT paths
-    if not os.path.isfile(path_training_data):
-        raise ValueError(f"Unknown path to training data {path_training_data}")
-
-    if not os.path.isfile(path_description):
-        raise ValueError(f"Unknown path to data description file {path_description}")
-
-    # OUTPUT paths
-    dirname = os.path.dirname(output_path)
-    if not os.path.exists(dirname):
-        raise ValueError(f"Directory {dirname} does not exist.")
-    if n_models == 1:
-        path_out = output_path + "-" + ".emb"
-        path_description_out = output_path + "_description.txt"
-        if os.path.isfile(path_out):
-            raise ValueError("Path {} for description already exists.".format(path_out))
-        if os.path.isfile(path_description_out):
-            raise ValueError("Path {} for description already exists.".format(path_description_out))
-    else:
-        for m in range(n_models):
-            path_out = output_path + "-" + str(m) + ".emb"
-            path_description_out = output_path + "-" + str(m) + "_description.txt"
-            if os.path.isfile(path_out):
-                raise ValueError("Path {} for description already exists.".format(path_out))
-            if os.path.isfile(path_description_out):
-                raise ValueError("Path {} for description already exists.".format(path_description_out))
-    # ---------------
-
-    for m in range(n_models):
-
-        print("Training model ", m + 1)
-
-        training_generator = DataGenerator(path_training_data,
-                                           share_of_original_data,
-                                           chunk_size,
-                                           random_buffer_size,
-                                           data_seed + m)
-
-        model = Doc2Vec(documents=training_generator, **hyperparameters)
-
-
-        # extract embedding
-        emb = model.docvecs
-
-        # save the current embedding
-        if n_models == 1:
-            path_out = output_path + ".emb"
-            path_description_out = output_path + "_description.txt"
-
-        else:
-            path_out = output_path + "-" + str(m) + ".emb"
-            path_description_out = output_path + "-" + str(m) + "_description.txt"
-
-        emb.save(path_out)
-
-        # save description
-        with open(path_description) as f:
-            description = f.readlines()
-            description = "".join(description)
-        log = "The following training data was used:\n\n{}\n".format(description)
-        log += "Used {}% of original data for training.\n".format(100 * share_of_original_data)
-        log += "Used a random buffer size of {} lines and chunks of size {}.\n".format(random_buffer_size, chunk_size)
-        log += f"Used the data seed {data_seed} \n."
-        log += "The model generating the embedding was trained with the following " \
-               "hyperparameters: \n {}\n".format(hyperparameters)
-        log += f"Word vectors were normalized: {normalize}"
-
-        with open(path_description_out, "w") as f:
-            f.write(log)
