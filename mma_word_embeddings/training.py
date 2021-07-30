@@ -91,6 +91,9 @@ def train_word2vec_model(
         output_path,
         hyperparameters={},
         hyperparameters_pretraining={},
+        epochs_continue_training=10,
+        total_examples_continue_training=None,
+        word_count_continue_training=0,
         normalize=True,
         n_models=1,
         share_data=1.,
@@ -181,7 +184,10 @@ def train_word2vec_model(
                 model = pretraining_data
 
             model.build_vocab(training_generator, update=True)
-            model.train(corpus_iterable=training_generator, total_examples=model.corpus_count, epochs=model.epochs, **hyperparameters)
+            model.train(corpus_iterable=training_generator,
+                        total_examples=total_examples_continue_training,
+                        epochs=epochs_continue_training,
+                        word_count=word_count_continue_training)
 
         if normalize:
             # normalise the word vectors
