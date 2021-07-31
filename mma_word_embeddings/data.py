@@ -46,7 +46,7 @@ def clean(path_to_json,
           remove_stopwords=False,
           lemmatize=False,
           agent_column=None,
-          leave_hashtag_at_symbol=True,
+          is_twitter_data=True,
           ):
     """Save a preprocessed representation of the data to a new file.
 
@@ -59,7 +59,7 @@ def clean(path_to_json,
             of the strings is found will be processed.
         extract_sentences (bool): if true, save one sentence per line into the new file; else save one document per line
         remove_stopwords (bool): if true, remove standard stop words from training data
-        leave_hashtag_at_symbol (bool): if true, leave # and @
+        is_twitter_data (bool): if true, leave most of punctuation to preserve #, @ and emoticons
         lemmatize (bool): if true, replace words by their stems
         agent_column (None or str): if string, represents the name of the agent column;
             append text in text_column with agent tag before cleaning the data

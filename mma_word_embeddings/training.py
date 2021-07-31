@@ -1,8 +1,24 @@
 # This file contains a wrapper class for word2vec models training word trained_embeddings
 import os
 import numpy as np
-from gensim.models import Word2Vec, Doc2Vec
+from gensim.models import Word2Vec
 from random import seed, shuffle
+from gensim.models.callbacks import CallbackAny2Vec
+
+
+class callback(CallbackAny2Vec):
+    '''Callback to print loss after each epoch.'''
+
+    def __init__(self):
+        self.epoch = 0
+        self.loss_to_be_subed = 0
+
+    def on_epoch_end(self, model):
+        loss = model.get_latest_training_loss()
+        loss_now = loss - self.loss_to_be_subed
+        self.loss_to_be_subed = loss
+        print('Loss after epoch {}: {}'.format(self.epoch, loss_now))
+        self.epoch += 1
 
 
 class DataGenerator(object):
@@ -42,12 +58,16 @@ class DataGenerator(object):
         buffer = []
         with open(self.path_to_data, "r") as f:
 
+            reached_end = False
+
             # fill buffer for the first time
             for i in range(self.random_buffer_size):
                 line = f.readline().strip().split(" ")
+                if not line:
+                    reached_end = True
+                    break
                 buffer.append(line)
 
-            reached_end = False
             while not reached_end:
 
                 # randomise the buffer
@@ -96,19 +116,19 @@ def train_word2vec_model(
         n_models=1,
         chunk_size=10000,
         random_buffer_size=100000,
-        pretraining_data=None,
         data_seed=None,
 ):
     """Trains a single embedding or an ensemble of embeddings.
 
     Args:
        training_data (str): location of training data, one sentence/document per line
-        path_description (str): location of description file for training data
         output_path (str): where to save the model and description file; does not include an ending (.emb will
             be automatically added)
+        path_description (str): location of description file for training data
         hyperparameters (dict): dictionary of hyperparameters that are directly fed into Word2Vec model
         normalize (bool): whether to normalize the word vectors
         n_models (int): number of models to train
+        continue_training (dict): information needed to continue training a pretrained model
         share_data (float): each line loaded from the data file is discarded
             with this ratio; use 1. to use all data
         chunk_size (int): Return so many lines from the random buffer at once before filling it up again. Larger
@@ -117,8 +137,6 @@ def train_word2vec_model(
             returning the samples in a chunk. Higher values take more RAM but lead to more randomness
             when sampling the data. A value equal to the number of all samples would lead to perfectly
             random samples.
-        pretraining_data (str): if model should get pre-trained, specify this path to the pretraining data set;
-            the full dataset will be used for pre-training
         data_seed (int): Random seed set for sampling. When more than one model is created, the ith model
          will use data_seed + i as a seed for the data.
     """
@@ -166,7 +184,9 @@ def train_word2vec_model(
             if os.path.isfile(path_description_out):
                 raise ValueError("Path {} for description already exists.".format(path_description_out))
 
+    # some additions to save loss, and to print loss after each epoch
     hyperparameters["compute_loss"] = True
+    hyperparameters["callbacks"] = [callback()]
     # ---------------
 
     for m in range(n_models):
