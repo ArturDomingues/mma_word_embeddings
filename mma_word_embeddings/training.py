@@ -6,8 +6,10 @@ from random import seed, shuffle
 from gensim.models.callbacks import CallbackAny2Vec
 
 
-class callback(CallbackAny2Vec):
-    '''Callback to print loss after each epoch.'''
+class PrintLoss(CallbackAny2Vec):
+    """Callback to print loss after each epoch.
+    Credits https://stackoverflow.com/questions/54888490/gensim-word2vec-print-log-loss
+    """
 
     def __init__(self):
         self.epoch = 0
@@ -152,6 +154,7 @@ def train_word2vec_model(
         word_count_continue_training = continue_training["word_count"]
         chunk_size_continue_training = continue_training.pop("chunk_size", chunk_size)
         random_buffer_size_continue_training = continue_training.pop("random_buffer_size", random_buffer_size)
+        min_count_continue_training = continue_training.pop("min_count", hyperparameters["min_count"])
 
     # INPUT paths
     if isinstance(training_data, str) and not os.path.isfile(training_data):
@@ -186,7 +189,7 @@ def train_word2vec_model(
 
     # some additions to save loss, and to print loss after each epoch
     hyperparameters["compute_loss"] = True
-    hyperparameters["callbacks"] = [callback()]
+    hyperparameters["callbacks"] = [PrintLoss()]
     # ---------------
 
     for m in range(n_models):
@@ -211,12 +214,13 @@ def train_word2vec_model(
                                                 chunk_size=chunk_size_continue_training,
                                                 random_buffer_size=random_buffer_size_continue_training,
                                                 data_seed=data_seed + m)
-
+            model.min_count = min_count_continue_training
             model.build_vocab(training_generator2, update=True)
             model.train(corpus_iterable=training_generator2,
                         total_examples=total_examples_continue_training,
                         epochs=epochs_continue_training,
-                        word_count=word_count_continue_training)
+                        word_count=word_count_continue_training,
+                        callbacks=[PrintLoss()])
             acc2 = model.get_latest_training_loss()
         if normalize:
             # normalise the word vectors
@@ -245,7 +249,8 @@ def train_word2vec_model(
         log += f"Used the data seed {data_seed} \n."
         log += "The model generating the embedding was trained with the following " \
                "hyperparameters: \n {}\n".format(hyperparameters)
-        log += f"Training accurracy was {acc} \n."
+        if not isinstance(training_data, str):
+            log += f"Training accurracy was {acc} \n."
         if continue_training:
             log += f"Continued training with settings {continue_training}.\n"
             log += f"During second training the accuracy was {acc2}.\n"

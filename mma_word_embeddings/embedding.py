@@ -73,6 +73,10 @@ class WordEmbedding:
         else:
             return voc
 
+    def word_frequency(self, word):
+        """Return the frequency of a word in the training data."""
+        return self._word_vectors.get_vecattr(word, "count")
+
     def vocab_size(self):
         """Return the size of the vocabulary in the embedding."""
 
