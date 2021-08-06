@@ -14,12 +14,14 @@ class PrintLoss(CallbackAny2Vec):
     def __init__(self):
         self.epoch = 0
         self.loss_to_be_subed = 0
+        self.log = ""
 
     def on_epoch_end(self, model):
         loss = model.get_latest_training_loss()
         loss_now = loss - self.loss_to_be_subed
         self.loss_to_be_subed = loss
         print('Loss after epoch {}: {}'.format(self.epoch, loss_now))
+        self.log += 'Loss after epoch {}: {} \n'.format(self.epoch, loss_now)
         self.epoch += 1
 
 
@@ -189,7 +191,8 @@ def train_word2vec_model(
 
     # some additions to save loss, and to print loss after each epoch
     hyperparameters["compute_loss"] = True
-    hyperparameters["callbacks"] = [PrintLoss()]
+    logger_training = PrintLoss()
+    hyperparameters["callbacks"] = [logger_training]
     # ---------------
 
     for m in range(n_models):
@@ -206,7 +209,7 @@ def train_word2vec_model(
                                                random_buffer_size,
                                                data_seed + m)
             model = Word2Vec(sentences=training_generator, **hyperparameters)
-            acc = model.get_latest_training_loss()
+            loss_log = logger_training.log
         if continue_training:
 
             training_generator2 = DataGenerator(path_continue_training,
@@ -216,12 +219,13 @@ def train_word2vec_model(
                                                 data_seed=data_seed + m)
             model.min_count = min_count_continue_training
             model.build_vocab(training_generator2, update=True)
+            logger_continue_training = PrintLoss()
             model.train(corpus_iterable=training_generator2,
                         total_examples=total_examples_continue_training,
                         epochs=epochs_continue_training,
                         word_count=word_count_continue_training,
-                        callbacks=[PrintLoss()])
-            acc2 = model.get_latest_training_loss()
+                        callbacks=[logger_continue_training])
+            loss_log_continue = logger_continue_training.log
         if normalize:
             # normalise the word vectors
             model.wv.init_sims()
@@ -249,11 +253,11 @@ def train_word2vec_model(
         log += f"Used the data seed {data_seed} \n."
         log += "The model generating the embedding was trained with the following " \
                "hyperparameters: \n {}\n".format(hyperparameters)
-        if not isinstance(training_data, str):
-            log += f"Training accurracy was {acc} \n."
+        if isinstance(training_data, str):
+            log += f"Training loss: \n" + loss_log + "\n."
         if continue_training:
             log += f"Continued training with settings {continue_training}.\n"
-            log += f"During second training the accuracy was {acc2}.\n"
+            log += f"Training loss in continued training: \n" + loss_log_continue + "\n."
 
         log += f"Word vectors were normalized: {normalize}"
 
