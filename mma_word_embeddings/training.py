@@ -156,7 +156,7 @@ def train_word2vec_model(
         word_count_continue_training = continue_training["word_count"]
         chunk_size_continue_training = continue_training.pop("chunk_size", chunk_size)
         random_buffer_size_continue_training = continue_training.pop("random_buffer_size", random_buffer_size)
-        min_count_continue_training = continue_training.pop("min_count", hyperparameters["min_count"])
+        min_count_continue_training = continue_training["min_count"]
 
     # INPUT paths
     if isinstance(training_data, str) and not os.path.isfile(training_data):
