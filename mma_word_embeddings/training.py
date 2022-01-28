@@ -12,7 +12,7 @@ class PrintLoss(CallbackAny2Vec):
     """
 
     def __init__(self):
-        self.epoch = 0
+        self.epoch = 1
         self.loss_to_be_subed = 0
         self.log = ""
 

@@ -76,7 +76,7 @@ def clean(path_to_json,
     # load a json reader that can read files line-by-line
     data_loader = open(path_to_json, "r")
 
-    if leave_hashtag_at_symbol:
+    if is_twitter_data:
         PUNCT = PUNCTUATION.replace("#", "").replace("@", "")
 
     for idx, row in enumerate(data_loader):
@@ -133,8 +133,7 @@ def clean(path_to_json,
 
             chunk = chunk.replace('displayad', '')
 
-            chunk = ''.join(char for word in chunk for char in word
-                               if char not in PUNCT)
+            chunk = ''.join(char for word in chunk for char in word if char not in PUNCT)
 
             # split string into list of words separated by whitespace
             chunk = chunk.split()
@@ -175,7 +174,7 @@ def clean(path_to_json,
     description += r"...remove expression '\xad' " + "\n"
     description += r"...remove expression 'displayad'" + "\n"
     description += r"...remove punctuation (but keep digits "
-    if leave_hashtag_at_symbol:
+    if is_twitter_data:
         description += r"and hashtag and at symbol)" + "\n"
     else:
         description += r")" + "\n"
